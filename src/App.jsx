@@ -20,7 +20,7 @@ const initialProductCatalog = [
   {
     id: 1,
     name: 'Sculpted Wool Blazer',
-    price: 420,
+    price: 6720000,
     category: 'Outerwear',
     color: 'Ivory',
     material: 'Wool blend',
@@ -34,7 +34,7 @@ const initialProductCatalog = [
   {
     id: 2,
     name: 'Relaxed Leather Trench',
-    price: 560,
+    price: 8960000,
     category: 'Outerwear',
     color: 'Stone',
     material: 'Italian leather',
@@ -48,7 +48,7 @@ const initialProductCatalog = [
   {
     id: 3,
     name: 'Tailored Pleat Trousers',
-    price: 240,
+    price: 3840000,
     category: 'Tailoring',
     color: 'Black',
     material: 'Stretch twill',
@@ -62,7 +62,7 @@ const initialProductCatalog = [
   {
     id: 4,
     name: 'Monochrome Knit Polo',
-    price: 180,
+    price: 2880000,
     category: 'Knitwear',
     color: 'Ash',
     material: 'Cotton knit',
@@ -76,7 +76,7 @@ const initialProductCatalog = [
   {
     id: 5,
     name: 'Woven Cotton Shirt',
-    price: 210,
+    price: 3360000,
     category: 'Shirts',
     color: 'Bone',
     material: 'Cotton poplin',
@@ -90,7 +90,7 @@ const initialProductCatalog = [
   {
     id: 6,
     name: 'Double Face Wool Coat',
-    price: 640,
+    price: 10240000,
     category: 'Outerwear',
     color: 'Black',
     material: 'Double-faced wool',
@@ -104,7 +104,7 @@ const initialProductCatalog = [
   {
     id: 7,
     name: 'Soft Tailored Dress',
-    price: 320,
+    price: 5120000,
     category: 'Dresses',
     color: 'Ecru',
     material: 'Silk blend',
@@ -118,7 +118,7 @@ const initialProductCatalog = [
   {
     id: 8,
     name: 'Structured Leather Tote',
-    price: 260,
+    price: 4160000,
     category: 'Accessories',
     color: 'Black',
     material: 'Full grain leather',
@@ -127,6 +127,58 @@ const initialProductCatalog = [
       'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80',
       'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80',
       'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80',
+    ],
+  },
+  {
+    id: 9,
+    name: 'Minimal Day Backpack',
+    price: 5440000,
+    category: 'Accessories',
+    color: 'Navy',
+    material: 'Technical canvas',
+    sizes: ['One Size'],
+    gallery: [
+      'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=900&q=80',
+    ],
+  },
+  {
+    id: 10,
+    name: 'Woven Cashmere Scarf',
+    price: 2480000,
+    category: 'Accessories',
+    color: 'Charcoal',
+    material: 'Cashmere blend',
+    sizes: ['One Size'],
+    gallery: [
+      'https://images.unsplash.com/photo-1601924994987-69e26d50dc26?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1606760227091-3dd870d97f1d?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1544923246-77307dd654cb?auto=format&fit=crop&w=900&q=80',
+    ],
+  },
+  {
+    id: 11,
+    name: 'Sculptural Silver Cuff',
+    price: 3040000,
+    category: 'Accessories',
+    color: 'Silver',
+    material: 'Sterling silver',
+    sizes: ['One Size'],
+    gallery: [
+      'https://images.unsplash.com/photo-1611652022419-a9419f74343d?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1611591437281-460bfbe1220a?auto=format&fit=crop&w=900&q=80',
+    ],
+  },
+  {
+    id: 12,
+    name: 'Minimal Acetate Sunglasses',
+    price: 2240000,
+    category: 'Accessories',
+    color: 'Black',
+    material: 'Acetate',
+    sizes: ['One Size'],
+    gallery: [
+      'https://images.unsplash.com/photo-1511499767150-a48a237f0083?auto=format&fit=crop&w=900&q=80',
     ],
   },
 ]
@@ -141,10 +193,10 @@ const initialArticles = [
   { id: 'seed-edit', category: 'The edit', title: 'Pieces to return to', image: 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80', alt: 'A timeless fashion look', excerpt: 'A small wardrobe of pieces that earns its place over time.', body: 'The pieces we return to most are often the simplest: a clean shirt, a reliable coat, trousers with the right ease. Choosing fewer, better things lets personal style become clearer with every wear.' },
 ]
 
-const formatPrice = (price) =>
-  new Intl.NumberFormat('en-US', {
+const formatPrice = (price, currency = 'IDR') =>
+  new Intl.NumberFormat('id-ID', {
     style: 'currency',
-    currency: 'USD',
+    currency,
     maximumFractionDigits: 0,
   }).format(price)
 
@@ -161,7 +213,7 @@ async function requestJSON(url, options = {}) {
 function App() {
   const [currentView, setCurrentView] = useState('home')
   const [collectionMode, setCollectionMode] = useState('new')
-  const [productCatalog, setProductCatalog] = useState(() => initialProductCatalog.map((product) => ({ ...product, audience: [2, 3, 4, 5, 6].includes(product.id) ? 'men' : product.id === 8 ? 'unisex' : 'women', isActive: true })))
+  const [productCatalog, setProductCatalog] = useState(() => initialProductCatalog.map((product) => ({ ...product, audience: [2, 3, 4, 5, 6, 12].includes(product.id) ? 'men' : [8, 9, 10, 11].includes(product.id) ? 'unisex' : 'women', isActive: true })))
   const [articles, setArticles] = useState(initialArticles)
   const [selectedProductId, setSelectedProductId] = useState(1)
   const [selectedArticle, setSelectedArticle] = useState(null)
@@ -183,12 +235,15 @@ function App() {
   const [authForm, setAuthForm] = useState({ name: '', email: '', password: '' })
   const [authError, setAuthError] = useState('')
   const [authBusy, setAuthBusy] = useState(false)
-  const [checkoutForm, setCheckoutForm] = useState({ firstName: '', lastName: '', email: '', phone: '', address: '', city: '', postalCode: '', country: '' })
+  const [checkoutForm, setCheckoutForm] = useState({ firstName: '', lastName: '', email: '', phone: '', address: '', city: '', postalCode: '', country: 'Indonesia' })
   const [checkoutError, setCheckoutError] = useState('')
   const [checkoutBusy, setCheckoutBusy] = useState(false)
   const [shippingMethod, setShippingMethod] = useState('standard')
   const [orderNumber, setOrderNumber] = useState('')
   const [completedOrder, setCompletedOrder] = useState(null)
+  const [customerOrders, setCustomerOrders] = useState([])
+  const [orderHistoryLoading, setOrderHistoryLoading] = useState(false)
+  const [orderHistoryError, setOrderHistoryError] = useState('')
   const [adminTab, setAdminTab] = useState('products')
   const [adminProducts, setAdminProducts] = useState([])
   const [adminArticles, setAdminArticles] = useState([])
@@ -227,6 +282,26 @@ function App() {
   }, [])
 
   useEffect(() => {
+    if (currentView !== 'orders' || !user) return
+    let cancelled = false
+    setOrderHistoryLoading(true)
+    requestJSON('/api/orders')
+      .then(({ orders }) => {
+        if (!cancelled) {
+          setCustomerOrders(orders)
+          setOrderHistoryError('')
+        }
+      })
+      .catch((requestError) => {
+        if (!cancelled) setOrderHistoryError(requestError.message)
+      })
+      .finally(() => {
+        if (!cancelled) setOrderHistoryLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [currentView, user])
+
+  useEffect(() => {
     if (currentView !== 'admin' || user?.role !== 'admin') return
     let cancelled = false
     setCmsLoading(true)
@@ -251,13 +326,18 @@ function App() {
     return () => { cancelled = true }
   }, [currentView, user])
 
-  const activeCatalog = collectionMode === 'men' ? productCatalog.filter((product) => product.audience === 'men' || product.audience === 'unisex') : productCatalog
+  const activeCatalog = collectionMode === 'men'
+    ? productCatalog.filter((product) => product.audience === 'men' || product.audience === 'unisex')
+    : collectionMode === 'accessories'
+      ? productCatalog.filter((product) => product.category === 'Accessories')
+      : productCatalog
   const selectedProduct = activeCatalog.find((item) => item.id === selectedProductId) || activeCatalog[0]
 
   const filteredProducts =
     selectedFilter === 'All'
       ? activeCatalog
       : activeCatalog.filter((product) => product.category === selectedFilter)
+  const activeFilterOptions = collectionMode === 'accessories' ? ['All', 'Accessories'] : filterOptions
 
   const openCollection = (mode = 'new') => {
     setCollectionMode(mode)
@@ -266,7 +346,7 @@ function App() {
   }
 
   const subtotal = bag.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  const shipping = shippingMethod === 'express' ? 40 : subtotal >= 500 ? 0 : 24
+  const shipping = shippingMethod === 'express' ? 400000 : subtotal >= 8000000 ? 0 : 240000
   const total = subtotal + shipping
 
   const handleAuthSubmit = async (event) => {
@@ -493,6 +573,92 @@ function App() {
   const setArticleValue = (field, value) => setArticleDraft((draft) => ({ ...draft, [field]: value }))
 
   const renderView = () => {
+    if (currentView === 'orders') {
+      if (!user) {
+        return (
+          <section className="mx-auto max-w-2xl px-4 pb-20 pt-36 text-center">
+            <p className="nav-label text-[#8A8A86]">Your account</p>
+            <h1 className="mt-3 font-display text-5xl">Sign in to view your orders</h1>
+            <button type="button" className="mt-6 border border-black bg-black px-6 py-4 text-[10px] uppercase tracking-[0.24em] text-white" onClick={() => { setAuthMode('login'); setAuthOpen(true); }}>
+              Sign in
+            </button>
+          </section>
+        )
+      }
+
+      return (
+        <motion.div key="orders" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.35, ease: 'easeOut' }}>
+          <section className="mx-auto max-w-[1100px] px-4 pb-20 pt-28 md:px-8">
+            <div className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-[#D8D8D4] pb-6">
+              <div>
+                <p className="nav-label text-[#8A8A86]">Account · {user.email}</p>
+                <h1 className="font-display text-6xl md:text-7xl">Order history</h1>
+              </div>
+              <button type="button" className="border border-[#D8D8D4] bg-white px-5 py-3 text-[10px] uppercase tracking-[0.24em]" onClick={() => setCurrentView('home')}>
+                Continue shopping
+              </button>
+            </div>
+
+            {orderHistoryLoading ? (
+              <p className="py-12 text-sm text-[#8A8A86]">Loading orders…</p>
+            ) : orderHistoryError ? (
+              <p role="alert" className="border border-[#B3261E]/30 bg-white px-4 py-3 text-sm text-[#B3261E]">{orderHistoryError}</p>
+            ) : customerOrders.length === 0 ? (
+              <div className="border-y border-[#D8D8D4] py-16 text-center">
+                <p className="font-display text-4xl">No orders yet</p>
+                <p className="mt-2 text-sm text-[#8A8A86]">Your purchases and delivery updates will appear here.</p>
+                <button type="button" className="mt-6 border border-black bg-black px-6 py-4 text-[10px] uppercase tracking-[0.24em] text-white" onClick={() => openCollection()}>
+                  Explore the collection
+                </button>
+              </div>
+            ) : (
+              <div className="divide-y divide-[#D8D8D4]">
+                {customerOrders.map((order) => {
+                  const paymentLabel = order.paymentStatus === 'sandbox_pending'
+                    ? 'Pending · demo payment, no charge'
+                    : order.paymentStatus === 'paid' ? 'Paid' : order.paymentStatus
+                  const fulfillmentLabel = {
+                    processing: 'Processing',
+                    packed: 'Packed',
+                    shipped: 'Shipped',
+                    delivered: 'Delivered',
+                    cancelled: 'Cancelled',
+                  }[order.fulfillmentStatus] || order.fulfillmentStatus
+                  return (
+                    <article key={order.id} className="py-7">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-medium">{order.orderNumber}</p>
+                          <p className="mt-1 text-xs text-[#8A8A86]">{new Date(order.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} · {order.items.reduce((count, item) => count + item.quantity, 0)} items</p>
+                        </div>
+                        <p className="font-medium">{formatPrice(order.total, order.currencyCode)}</p>
+                      </div>
+                      <div className="mt-5 grid gap-4 border-y border-[#D8D8D4] py-4 text-sm sm:grid-cols-2">
+                        <div><p className="nav-label text-[#8A8A86]">Payment</p><p className="mt-1">{paymentLabel}</p></div>
+                        <div><p className="nav-label text-[#8A8A86]">Delivery status</p><p className="mt-1">{fulfillmentLabel} · {order.shippingMethod === 'express' ? 'Express' : 'Standard'}</p></div>
+                      </div>
+                      <div className="divide-y divide-[#E9E9E6]">
+                        {order.items.map((item, index) => (
+                          <div key={`${item.name}-${item.size}-${index}`} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
+                            <p>{item.name} <span className="text-xs text-[#8A8A86]">· Size {item.size} · Qty {item.quantity}</span></p>
+                            <p>{formatPrice(item.unitPrice * item.quantity, order.currencyCode)}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-2 flex justify-between text-sm text-[#686864]">
+                        <span>Shipping</span>
+                        <span>{order.shipping === 0 ? 'Free' : formatPrice(order.shipping, order.currencyCode)}</span>
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+        </motion.div>
+      )
+    }
+
     if (currentView === 'plp') {
       return (
         <motion.div key="plp" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -24 }} transition={{ duration: 0.45, ease: 'easeOut' }}>
@@ -507,10 +673,20 @@ function App() {
                 </div>
               </div>
             )}
+            {collectionMode === 'accessories' && (
+              <div className="relative mb-8 h-[320px] overflow-hidden bg-[#DAD7D1] md:h-[460px]">
+                <img src="https://images.unsplash.com/photo-1511499767150-a48a237f0083?auto=format&fit=crop&w=1800&q=85" alt="AUREVÉ acetate sunglasses" className="h-full w-full object-cover object-center" />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/10 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 p-6 text-white md:p-10">
+                  <p className="nav-label mb-3 text-white/75">AUREVÉ · Objects of intention</p>
+                  <h2 className="max-w-xl font-display text-5xl leading-none md:text-7xl">The finishing touch.</h2>
+                </div>
+              </div>
+            )}
             <div className="mb-8 flex items-end justify-between gap-4 border-b border-[#D8D8D4] pb-5">
               <div>
-                <p className="nav-label text-[#8A8A86]">{collectionMode === 'men' ? 'AUREVÉ Menswear' : 'Collection'}</p>
-                <h1 className="font-display text-5xl md:text-7xl">{collectionMode === 'men' ? "The Men's Collection" : 'Autumn / Winter 26'}</h1>
+                <p className="nav-label text-[#8A8A86]">{collectionMode === 'men' ? 'AUREVÉ Menswear' : collectionMode === 'accessories' ? 'AUREVÉ Accessories' : 'Collection'}</p>
+                <h1 className="font-display text-5xl md:text-7xl">{collectionMode === 'men' ? "The Men's Collection" : collectionMode === 'accessories' ? 'Objects of Intention' : 'Autumn / Winter 26'}</h1>
               </div>
               <div className="hidden items-center gap-3 md:flex">
                 <button className="nav-button border border-[#D8D8D4] px-4 py-3 text-[11px] uppercase tracking-[0.28em]" onClick={() => setFiltersOpen(true)}>
@@ -522,7 +698,7 @@ function App() {
               </div>
             </div>
             <div className="mb-8 flex gap-3 overflow-x-auto pb-2 md:hidden">
-              {filterOptions.map((option) => (
+              {activeFilterOptions.map((option) => (
                 <button
                   key={option}
                   type="button"
@@ -646,7 +822,7 @@ function App() {
                     {[
                       { key: 'composition', label: 'Composition', content: 'Italian wool blend with satin lining. Designed for a softly structured silhouette.' },
                       { key: 'care', label: 'Care', content: 'Dry clean only. Spot clean immediately if exposure to moisture occurs.' },
-                      { key: 'shipping', label: 'Shipping', content: 'Complimentary express shipping on all orders above $500.' },
+                      { key: 'shipping', label: 'Shipping', content: 'Complimentary standard shipping on orders above Rp8.000.000.' },
                     ].map((item) => (
                       <AccordionItem
                         key={item.key}
@@ -807,7 +983,7 @@ function App() {
                       </div>
                       <CmsField label="Product name" value={productDraft.name} onChange={(value) => setProductValue('name', value)} required />
                       <div className="grid gap-4 sm:grid-cols-2">
-                        <CmsField label="Price (USD)" type="number" value={productDraft.price} onChange={(value) => setProductValue('price', value)} required />
+                        <CmsField label="Price (IDR)" type="number" value={productDraft.price} onChange={(value) => setProductValue('price', value)} required />
                         <CmsField label="Category" value={productDraft.category} onChange={(value) => setProductValue('category', value)} required />
                         <CmsField label="Color" value={productDraft.color} onChange={(value) => setProductValue('color', value)} required />
                         <CmsField label="Material" value={productDraft.material} onChange={(value) => setProductValue('material', value)} required />
@@ -867,7 +1043,7 @@ function App() {
                               <td className="py-4 pr-4"><p>{order.orderNumber}</p><p className="mt-1 text-xs text-[#8A8A86]">{order.itemCount} line items</p></td>
                               <td className="py-4 pr-4"><p>{order.customerName}</p><p className="mt-1 text-xs text-[#8A8A86]">{order.customerEmail}</p></td>
                               <td className="py-4 pr-4"><p className="capitalize">{order.shippingMethod}</p><p className="mt-1 text-xs text-[#8A8A86]">{order.shippingAddress.city}, {order.shippingAddress.country}</p></td>
-                              <td className="py-4 pr-4">{formatPrice(order.total)}</td>
+                              <td className="py-4 pr-4">{formatPrice(order.total, order.currencyCode || 'IDR')}</td>
                               <td className="py-4"><select aria-label={`Fulfillment status for ${order.orderNumber}`} value={order.fulfillmentStatus} onChange={(event) => updateOrderStatus(order.id, event.target.value)} className="border border-[#D8D8D4] bg-white px-2 py-2 text-xs"><option value="processing">Processing</option><option value="packed">Packed</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option></select></td>
                             </tr>
                           ))}</tbody>
@@ -955,8 +1131,8 @@ function App() {
                               <p className="nav-label text-[#8A8A86]">Shipping method</p>
                               <div className="grid gap-3 sm:grid-cols-2">
                                 {[
-                                  { id: 'standard', label: 'Standard', timing: '3-5 business days', price: subtotal >= 500 ? 'Complimentary' : formatPrice(24) },
-                                  { id: 'express', label: 'Express', timing: '1-2 business days', price: formatPrice(40) },
+                                  { id: 'standard', label: 'Standard', timing: '3-5 business days', price: subtotal >= 8000000 ? 'Complimentary' : formatPrice(240000) },
+                                  { id: 'express', label: 'Express', timing: '1-2 business days', price: formatPrice(400000) },
                                 ].map((method) => (
                                   <button key={method.id} type="button" aria-pressed={shippingMethod === method.id} className={`border p-4 text-left ${shippingMethod === method.id ? 'border-black bg-[#F7F7F5]' : 'border-[#D8D8D4] bg-white'}`} onClick={() => setShippingMethod(method.id)}>
                                     <span className="flex items-center justify-between text-sm font-medium">{method.label}<span>{method.price}</span></span>
@@ -1112,7 +1288,7 @@ function App() {
             </button>
             <nav className="hidden items-center gap-8 md:flex">
                 {[...navItems, ...(user?.role === 'admin' ? ['CMS'] : [])].map((item) => (
-                  <button key={item} type="button" className="nav-label text-black hover:text-[#8A8A86]" onClick={() => { if (item === 'CMS') setCurrentView('admin'); else if (item === 'Journal') setCurrentView('journal'); else if (item === 'New In' || item === 'Men') openCollection(item === 'Men' ? 'men' : 'new'); else setCurrentView('home'); }}>
+                  <button key={item} type="button" className="nav-label text-black hover:text-[#8A8A86]" onClick={() => { if (item === 'CMS') setCurrentView('admin'); else if (item === 'Journal') setCurrentView('journal'); else if (item === 'New In' || item === 'Men' || item === 'Accessories') openCollection(item === 'Men' ? 'men' : item === 'Accessories' ? 'accessories' : 'new'); else setCurrentView('home'); }}>
                   {item}
                 </button>
               ))}
@@ -1148,7 +1324,7 @@ function App() {
             <div className="flex h-[calc(100%-80px)] flex-col justify-between p-6">
               <div className="space-y-5">
                 {[...navItems, ...(user?.role === 'admin' ? ['CMS'] : [])].map((item) => (
-                  <button key={item} type="button" className="block w-full border-b border-[#D8D8D4] py-4 text-left text-2xl font-display" onClick={() => { if (item === 'CMS') setCurrentView('admin'); else if (item === 'Journal') setCurrentView('journal'); else if (item === 'New In' || item === 'Men') openCollection(item === 'Men' ? 'men' : 'new'); else setCurrentView('home'); setMobileMenuOpen(false); }}>
+                  <button key={item} type="button" className="block w-full border-b border-[#D8D8D4] py-4 text-left text-2xl font-display" onClick={() => { if (item === 'CMS') setCurrentView('admin'); else if (item === 'Journal') setCurrentView('journal'); else if (item === 'New In' || item === 'Men' || item === 'Accessories') openCollection(item === 'Men' ? 'men' : item === 'Accessories' ? 'accessories' : 'new'); else setCurrentView('home'); setMobileMenuOpen(false); }}>
                     {item}
                   </button>
                 ))}
@@ -1243,7 +1419,7 @@ function App() {
               <div>
                 <p className="nav-label text-[#8A8A86]">Price</p>
                 <div className="mt-3 flex items-center justify-between border border-[#D8D8D4] bg-white px-4 py-3">
-                  <span className="text-sm">£100 - £600</span>
+                  <span className="text-sm">Rp1.600.000 - Rp9.600.000</span>
                   <SlidersHorizontal className="h-4 w-4" />
                 </div>
               </div>

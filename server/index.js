@@ -40,6 +40,7 @@ database.exec(`
     payment_method TEXT NOT NULL,
     payment_status TEXT NOT NULL,
     fulfillment_status TEXT NOT NULL DEFAULT 'processing',
+    currency_code TEXT NOT NULL DEFAULT 'IDR',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   CREATE TABLE IF NOT EXISTS order_items (
@@ -55,6 +56,7 @@ database.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     price INTEGER NOT NULL,
+    currency_code TEXT NOT NULL DEFAULT 'IDR',
     category TEXT NOT NULL,
     color TEXT NOT NULL,
     material TEXT NOT NULL,
@@ -87,24 +89,61 @@ if (!userColumns.some((column) => column.name === 'role')) {
   database.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'customer'")
 }
 
+const productColumns = database.pragma('table_info(products)')
+if (!productColumns.some((column) => column.name === 'currency_code')) {
+  database.transaction(() => {
+    database.exec("ALTER TABLE products ADD COLUMN currency_code TEXT NOT NULL DEFAULT 'USD'")
+    database.exec("UPDATE products SET price = price * 16000, currency_code = 'IDR'")
+  })()
+}
+
+const orderColumns = database.pragma('table_info(orders)')
+if (!orderColumns.some((column) => column.name === 'currency_code')) {
+  database.exec("ALTER TABLE orders ADD COLUMN currency_code TEXT NOT NULL DEFAULT 'USD'")
+}
+
 const seedProducts = [
-  { id: 1, name: 'Sculpted Wool Blazer', price: 420, category: 'Outerwear', color: 'Ivory', material: 'Wool blend', audience: 'women', sizes: ['XS', 'S', 'M', 'L'], gallery: ['https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80'] },
-  { id: 2, name: 'Relaxed Leather Trench', price: 560, category: 'Outerwear', color: 'Stone', material: 'Italian leather', audience: 'men', sizes: ['S', 'M', 'L', 'XL'], gallery: ['https://images.unsplash.com/photo-1617137968427-85924c800a22?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80'] },
-  { id: 3, name: 'Tailored Pleat Trousers', price: 240, category: 'Tailoring', color: 'Black', material: 'Stretch twill', audience: 'men', sizes: ['XS', 'S', 'M', 'L', 'XL'], gallery: ['https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1617137968427-85924c800a22?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80'] },
-  { id: 4, name: 'Monochrome Knit Polo', price: 180, category: 'Knitwear', color: 'Ash', material: 'Cotton knit', audience: 'men', sizes: ['S', 'M', 'L'], gallery: ['https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1617137968427-85924c800a22?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80'] },
-  { id: 5, name: 'Woven Cotton Shirt', price: 210, category: 'Shirts', color: 'Bone', material: 'Cotton poplin', audience: 'men', sizes: ['XS', 'S', 'M', 'L', 'XL'], gallery: ['https://images.unsplash.com/photo-1617137968427-85924c800a22?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80'] },
-  { id: 6, name: 'Double Face Wool Coat', price: 640, category: 'Outerwear', color: 'Black', material: 'Double-faced wool', audience: 'men', sizes: ['S', 'M', 'L'], gallery: ['https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1617137968427-85924c800a22?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80'] },
-  { id: 7, name: 'Soft Tailored Dress', price: 320, category: 'Dresses', color: 'Ecru', material: 'Silk blend', audience: 'women', sizes: ['XS', 'S', 'M', 'L'], gallery: ['https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80'] },
-  { id: 8, name: 'Structured Leather Tote', price: 260, category: 'Accessories', color: 'Black', material: 'Full grain leather', audience: 'unisex', sizes: ['One Size'], gallery: ['https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80'] },
+  { id: 1, name: 'Sculpted Wool Blazer', price: 6720000, category: 'Outerwear', color: 'Ivory', material: 'Wool blend', audience: 'women', sizes: ['XS', 'S', 'M', 'L'], gallery: ['https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80'] },
+  { id: 2, name: 'Relaxed Leather Trench', price: 8960000, category: 'Outerwear', color: 'Stone', material: 'Italian leather', audience: 'men', sizes: ['S', 'M', 'L', 'XL'], gallery: ['https://images.unsplash.com/photo-1617137968427-85924c800a22?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80'] },
+  { id: 3, name: 'Tailored Pleat Trousers', price: 3840000, category: 'Tailoring', color: 'Black', material: 'Stretch twill', audience: 'men', sizes: ['XS', 'S', 'M', 'L', 'XL'], gallery: ['https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1617137968427-85924c800a22?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80'] },
+  { id: 4, name: 'Monochrome Knit Polo', price: 2880000, category: 'Knitwear', color: 'Ash', material: 'Cotton knit', audience: 'men', sizes: ['S', 'M', 'L'], gallery: ['https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1617137968427-85924c800a22?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80'] },
+  { id: 5, name: 'Woven Cotton Shirt', price: 3360000, category: 'Shirts', color: 'Bone', material: 'Cotton poplin', audience: 'men', sizes: ['XS', 'S', 'M', 'L', 'XL'], gallery: ['https://images.unsplash.com/photo-1617137968427-85924c800a22?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80'] },
+  { id: 6, name: 'Double Face Wool Coat', price: 10240000, category: 'Outerwear', color: 'Black', material: 'Double-faced wool', audience: 'men', sizes: ['S', 'M', 'L'], gallery: ['https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1617137968427-85924c800a22?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80'] },
+  { id: 7, name: 'Soft Tailored Dress', price: 5120000, category: 'Dresses', color: 'Ecru', material: 'Silk blend', audience: 'women', sizes: ['XS', 'S', 'M', 'L'], gallery: ['https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80'] },
+  { id: 8, name: 'Structured Leather Tote', price: 4160000, category: 'Accessories', color: 'Black', material: 'Full grain leather', audience: 'unisex', sizes: ['One Size'], gallery: ['https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80'] },
+  { id: 9, name: 'Minimal Day Backpack', price: 5440000, category: 'Accessories', color: 'Navy', material: 'Technical canvas', audience: 'unisex', sizes: ['One Size'], gallery: ['https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=900&q=80'] },
+  { id: 10, name: 'Woven Cashmere Scarf', price: 2480000, category: 'Accessories', color: 'Charcoal', material: 'Cashmere blend', audience: 'unisex', sizes: ['One Size'], gallery: ['https://images.unsplash.com/photo-1601924994987-69e26d50dc26?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1606760227091-3dd870d97f1d?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1544923246-77307dd654cb?auto=format&fit=crop&w=900&q=80'] },
+  { id: 11, name: 'Sculptural Silver Cuff', price: 3040000, category: 'Accessories', color: 'Silver', material: 'Sterling silver', audience: 'unisex', sizes: ['One Size'], gallery: ['https://images.unsplash.com/photo-1611652022419-a9419f74343d?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1611591437281-460bfbe1220a?auto=format&fit=crop&w=900&q=80'] },
+  { id: 12, name: 'Minimal Acetate Sunglasses', price: 2240000, category: 'Accessories', color: 'Black', material: 'Acetate', audience: 'unisex', sizes: ['One Size'], gallery: ['https://images.unsplash.com/photo-1511499767150-a48a237f0083?auto=format&fit=crop&w=900&q=80'] },
 ]
 
 const insertSeedProduct = database.prepare(`
-  INSERT OR IGNORE INTO products (id, name, price, category, color, material, audience, sizes, gallery)
-  VALUES (@id, @name, @price, @category, @color, @material, @audience, @sizes, @gallery)
+  INSERT OR IGNORE INTO products (id, name, price, currency_code, category, color, material, audience, sizes, gallery)
+  VALUES (@id, @name, @price, 'IDR', @category, @color, @material, @audience, @sizes, @gallery)
 `)
 for (const product of seedProducts) {
   insertSeedProduct.run({ ...product, sizes: JSON.stringify(product.sizes), gallery: JSON.stringify(product.gallery) })
 }
+database.prepare(`
+  UPDATE products SET name = @name, color = @color, material = @material, audience = @audience,
+    gallery = @gallery, updated_at = CURRENT_TIMESTAMP
+  WHERE id = 12 AND name = 'Minimal Leather Belt' AND gallery LIKE '%photo-1624222247344%'
+`).run({
+  name: 'Minimal Acetate Sunglasses',
+  color: 'Black',
+  material: 'Acetate',
+  audience: 'unisex',
+  gallery: JSON.stringify(['https://images.unsplash.com/photo-1511499767150-a48a237f0083?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1508296695146-257a814070b4?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?auto=format&fit=crop&w=900&q=80']),
+})
+database.prepare(`
+  UPDATE products SET name = 'Minimal Day Backpack', color = 'Navy', material = 'Technical canvas',
+    gallery = @gallery, updated_at = CURRENT_TIMESTAMP
+  WHERE id = 9 AND name = 'Soft Leather Crossbody' AND gallery LIKE '%photo-1548036328%'
+`).run({ gallery: JSON.stringify(['https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=900&q=80']) })
+database.prepare(`
+  UPDATE products SET gallery = @gallery, updated_at = CURRENT_TIMESTAMP
+  WHERE id = 12 AND name = 'Minimal Acetate Sunglasses' AND gallery LIKE '%photo-1508296695146%'
+`).run({ gallery: JSON.stringify(['https://images.unsplash.com/photo-1511499767150-a48a237f0083?auto=format&fit=crop&w=900&q=80']) })
 
 const seedArticles = [
   { category: 'Materials', title: 'The quiet character of wool', image: 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=900&q=80', alt: 'Textured wool garments', excerpt: 'A closer look at the natural texture and lasting character of wool.', body: 'The best materials reveal themselves slowly. Wool holds warmth without weight, texture without noise, and a shape that softens with time. We select fibres for how they feel in the hand and how they become part of a daily wardrobe.' },
@@ -184,9 +223,11 @@ function requireAdmin(request, response, next) {
 function presentProduct(row) {
   return {
     ...row,
+    currencyCode: row.currency_code,
     sizes: JSON.parse(row.sizes),
     gallery: JSON.parse(row.gallery),
     isActive: Boolean(row.is_active),
+    currency_code: undefined,
     is_active: undefined,
     created_at: undefined,
     updated_at: undefined,
@@ -213,7 +254,7 @@ function validateProduct(input) {
   })
 
   if (name.length < 2 || name.length > 120) return { error: 'Product name must be between 2 and 120 characters.' }
-  if (!Number.isInteger(price) || price < 1 || price > 1000000) return { error: 'Enter a valid product price.' }
+  if (!Number.isInteger(price) || price < 1 || price > 100000000) return { error: 'Enter a valid product price in IDR.' }
   if (!category || category.length > 60 || !color || color.length > 60 || !material || material.length > 100) return { error: 'Complete the product category, color, and material.' }
   if (!['men', 'women', 'unisex'].includes(audience)) return { error: 'Choose a valid product audience.' }
   if (!sizes.length || sizes.length > 12 || sizes.some((size) => typeof size !== 'string' || !size.trim() || size.length > 24)) return { error: 'Add between 1 and 12 valid sizes.' }
@@ -327,13 +368,13 @@ app.post('/api/checkout', requireUser, (request, response) => {
   }
 
   const subtotal = normalizedItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
-  const shipping = shippingMethod === 'standard' && subtotal >= 500 ? 0 : shippingMethod === 'express' ? 40 : 24
+  const shipping = shippingMethod === 'standard' && subtotal >= 8000000 ? 0 : shippingMethod === 'express' ? 400000 : 240000
   const total = subtotal + shipping
   const orderNumber = `AUR-${randomBytes(4).toString('hex').toUpperCase()}`
   const createOrder = database.transaction(() => {
     const result = database.prepare(`
-      INSERT INTO orders (order_number, user_id, subtotal, shipping, total, shipping_method, shipping_address, payment_method, payment_status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO orders (order_number, user_id, subtotal, shipping, total, shipping_method, shipping_address, payment_method, payment_status, currency_code)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'IDR')
     `).run(orderNumber, request.user.id, subtotal, shipping, total, shippingMethod, JSON.stringify(address), paymentMethod, 'sandbox_pending')
     const insertItem = database.prepare(`
       INSERT INTO order_items (order_id, product_id, product_name, unit_price, size, quantity)
@@ -347,18 +388,22 @@ app.post('/api/checkout', requireUser, (request, response) => {
 
   const orderId = createOrder()
   response.status(201).json({
-    order: { id: orderId, orderNumber, subtotal, shipping, total, paymentStatus: 'sandbox_pending', shippingMethod },
+    order: { id: orderId, orderNumber, subtotal, shipping, total, currencyCode: 'IDR', paymentStatus: 'sandbox_pending', shippingMethod },
     payment: { mode: 'sandbox', charged: false },
   })
 })
 
 app.get('/api/orders', requireUser, (request, response) => {
   const orders = database.prepare(`
-    SELECT id, order_number AS orderNumber, subtotal, shipping, total, shipping_method AS shippingMethod,
+    SELECT id, order_number AS orderNumber, subtotal, shipping, total, currency_code AS currencyCode, shipping_method AS shippingMethod,
       payment_status AS paymentStatus, fulfillment_status AS fulfillmentStatus, created_at AS createdAt
     FROM orders WHERE user_id = ? ORDER BY created_at DESC
   `).all(request.user.id)
-  response.json({ orders })
+  const getItems = database.prepare(`
+    SELECT product_name AS name, unit_price AS unitPrice, size, quantity
+    FROM order_items WHERE order_id = ? ORDER BY id
+  `)
+  response.json({ orders: orders.map((order) => ({ ...order, items: getItems.all(order.id) })) })
 })
 
 app.get('/api/admin/products', requireAdmin, (_request, response) => {
@@ -371,8 +416,8 @@ app.post('/api/admin/products', requireAdmin, (request, response) => {
   if (result.error) return response.status(400).json({ error: result.error })
   const product = result.value
   const insert = database.prepare(`
-    INSERT INTO products (name, price, category, color, material, audience, sizes, gallery, description)
-    VALUES (@name, @price, @category, @color, @material, @audience, @sizes, @gallery, @description)
+    INSERT INTO products (name, price, currency_code, category, color, material, audience, sizes, gallery, description)
+    VALUES (@name, @price, 'IDR', @category, @color, @material, @audience, @sizes, @gallery, @description)
   `).run({ ...product, sizes: JSON.stringify(product.sizes), gallery: JSON.stringify(product.gallery) })
   const created = database.prepare('SELECT * FROM products WHERE id = ?').get(insert.lastInsertRowid)
   response.status(201).json({ product: presentProduct(created) })
@@ -390,7 +435,7 @@ app.patch('/api/admin/products/:id', requireAdmin, (request, response) => {
     if (result.error) return response.status(400).json({ error: result.error })
     const product = result.value
     database.prepare(`
-      UPDATE products SET name = @name, price = @price, category = @category, color = @color,
+      UPDATE products SET name = @name, price = @price, currency_code = 'IDR', category = @category, color = @color,
         material = @material, audience = @audience, sizes = @sizes, gallery = @gallery,
         description = @description, updated_at = CURRENT_TIMESTAMP WHERE id = @id
     `).run({ ...product, sizes: JSON.stringify(product.sizes), gallery: JSON.stringify(product.gallery), id: productId })
@@ -434,6 +479,7 @@ app.patch('/api/admin/articles/:id', requireAdmin, (request, response) => {
 app.get('/api/admin/orders', requireAdmin, (_request, response) => {
   const orders = database.prepare(`
     SELECT orders.id, orders.order_number AS orderNumber, orders.subtotal, orders.shipping, orders.total,
+      orders.currency_code AS currencyCode,
       orders.shipping_method AS shippingMethod, orders.shipping_address AS shippingAddress,
       orders.payment_status AS paymentStatus, orders.fulfillment_status AS fulfillmentStatus,
       orders.created_at AS createdAt, users.name AS customerName, users.email AS customerEmail,

@@ -14,7 +14,7 @@ Copy `.env.example` to `.env` and set a unique `ADMIN_PASSWORD` before starting 
 
 The API supports account registration, login, logout, session restore, sandbox checkout, and order history. Passwords are hashed with bcrypt. Sessions use an HTTP-only cookie. The database stores users, sessions, orders, order items, shipping addresses, and payment/shipping statuses.
 
-Checkout currently uses demo payment only: orders are saved with `sandbox_pending`, and no payment is collected. Standard shipping costs $24 or is complimentary for orders of $500 or more; express shipping costs $40. These are estimates, not carrier rates, and no shipment booking or tracking is created.
+The storefront targets Indonesia and displays prices in IDR. Existing USD product prices are converted once at a fixed demo rate of Rp16,000 per USD when the database first migrates; this is not a live exchange rate. Checkout currently uses demo payment only: orders are saved with `sandbox_pending`, and no payment is collected. Standard shipping costs Rp240,000 or is complimentary for orders of Rp8,000,000 or more; express shipping costs Rp400,000. These are estimates, not carrier rates, and no shipment booking or tracking is created. Historical orders remain marked USD.
 
 ## Content management
 
