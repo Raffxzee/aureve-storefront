@@ -1,0 +1,1410 @@
+import { useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import {
+  ArrowRight,
+  Check,
+  ChevronRight,
+  Heart,
+  Menu,
+  Minus,
+  Plus,
+  Search,
+  ShoppingBag,
+  SlidersHorizontal,
+  Star,
+  User,
+  X,
+} from 'lucide-react'
+
+const initialProductCatalog = [
+  {
+    id: 1,
+    name: 'Sculpted Wool Blazer',
+    price: 420,
+    category: 'Outerwear',
+    color: 'Ivory',
+    material: 'Wool blend',
+    sizes: ['XS', 'S', 'M', 'L'],
+    gallery: [
+      'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80',
+    ],
+  },
+  {
+    id: 2,
+    name: 'Relaxed Leather Trench',
+    price: 560,
+    category: 'Outerwear',
+    color: 'Stone',
+    material: 'Italian leather',
+    sizes: ['S', 'M', 'L', 'XL'],
+    gallery: [
+      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80',
+    ],
+  },
+  {
+    id: 3,
+    name: 'Tailored Pleat Trousers',
+    price: 240,
+    category: 'Tailoring',
+    color: 'Black',
+    material: 'Stretch twill',
+    sizes: ['XS', 'S', 'M', 'L', 'XL'],
+    gallery: [
+      'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80',
+    ],
+  },
+  {
+    id: 4,
+    name: 'Monochrome Knit Polo',
+    price: 180,
+    category: 'Knitwear',
+    color: 'Ash',
+    material: 'Cotton knit',
+    sizes: ['S', 'M', 'L'],
+    gallery: [
+      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80',
+    ],
+  },
+  {
+    id: 5,
+    name: 'Woven Cotton Shirt',
+    price: 210,
+    category: 'Shirts',
+    color: 'Bone',
+    material: 'Cotton poplin',
+    sizes: ['XS', 'S', 'M', 'L', 'XL'],
+    gallery: [
+      'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80',
+    ],
+  },
+  {
+    id: 6,
+    name: 'Double Face Wool Coat',
+    price: 640,
+    category: 'Outerwear',
+    color: 'Black',
+    material: 'Double-faced wool',
+    sizes: ['S', 'M', 'L'],
+    gallery: [
+      'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80',
+    ],
+  },
+  {
+    id: 7,
+    name: 'Soft Tailored Dress',
+    price: 320,
+    category: 'Dresses',
+    color: 'Ecru',
+    material: 'Silk blend',
+    sizes: ['XS', 'S', 'M', 'L'],
+    gallery: [
+      'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80',
+    ],
+  },
+  {
+    id: 8,
+    name: 'Structured Leather Tote',
+    price: 260,
+    category: 'Accessories',
+    color: 'Black',
+    material: 'Full grain leather',
+    sizes: ['One Size'],
+    gallery: [
+      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80',
+    ],
+  },
+]
+
+const navItems = ['New In', 'Women', 'Men', 'Accessories', 'Journal']
+const filterOptions = ['All', 'Outerwear', 'Tailoring', 'Knitwear', 'Accessories']
+const sizeOptions = ['XS', 'S', 'M', 'L', 'XL']
+const initialArticles = [
+  { id: 'seed-wool', category: 'Materials', title: 'The quiet character of wool', image: 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=900&q=80', alt: 'Textured wool garments', excerpt: 'A closer look at the natural texture and lasting character of wool.', body: 'The best materials reveal themselves slowly. Wool holds warmth without weight, texture without noise, and a shape that softens with time. We select fibres for how they feel in the hand and how they become part of a daily wardrobe.' },
+  { id: 'seed-between', category: 'Perspective', title: 'Dressing for the in-between', image: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80', alt: 'Contemporary fashion styling', excerpt: 'Thoughtful layers for the days that never fit one forecast.', body: 'An open collar, a light knit, a coat with room to move. Dressing for changing weather is an exercise in balance: pieces that can be added or left behind without losing their point of view.' },
+  { id: 'seed-atelier', category: 'Atelier', title: 'A closer look at the details', image: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=900&q=80', alt: 'Thoughtfully styled clothing', excerpt: 'Small decisions in cut, finish and construction shape a garment.', body: 'A considered garment is built through many quiet decisions. We look closely at the line of a shoulder, the weight of a button and the way a seam sits against the body. These details are meant to be lived with, not simply noticed.' },
+  { id: 'seed-edit', category: 'The edit', title: 'Pieces to return to', image: 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80', alt: 'A timeless fashion look', excerpt: 'A small wardrobe of pieces that earns its place over time.', body: 'The pieces we return to most are often the simplest: a clean shirt, a reliable coat, trousers with the right ease. Choosing fewer, better things lets personal style become clearer with every wear.' },
+]
+
+const formatPrice = (price) =>
+  new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(price)
+
+async function requestJSON(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+  })
+  const result = await response.json()
+  if (!response.ok) throw new Error(result.error || 'The request could not be completed.')
+  return result
+}
+
+function App() {
+  const [currentView, setCurrentView] = useState('home')
+  const [collectionMode, setCollectionMode] = useState('new')
+  const [productCatalog, setProductCatalog] = useState(() => initialProductCatalog.map((product) => ({ ...product, audience: [2, 3, 4, 5, 6].includes(product.id) ? 'men' : product.id === 8 ? 'unisex' : 'women', isActive: true })))
+  const [articles, setArticles] = useState(initialArticles)
+  const [selectedProductId, setSelectedProductId] = useState(1)
+  const [selectedArticle, setSelectedArticle] = useState(null)
+  const [selectedSize, setSelectedSize] = useState('M')
+  const [bag, setBag] = useState([])
+  const [cartOpen, setCartOpen] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [authOpen, setAuthOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [headerSolid, setHeaderSolid] = useState(false)
+  const [selectedFilter, setSelectedFilter] = useState('All')
+  const [checkoutStep, setCheckoutStep] = useState(0)
+  const [error, setError] = useState('')
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0)
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [openAccordion, setOpenAccordion] = useState('composition')
+  const [user, setUser] = useState(null)
+  const [authMode, setAuthMode] = useState('login')
+  const [authForm, setAuthForm] = useState({ name: '', email: '', password: '' })
+  const [authError, setAuthError] = useState('')
+  const [authBusy, setAuthBusy] = useState(false)
+  const [checkoutForm, setCheckoutForm] = useState({ firstName: '', lastName: '', email: '', phone: '', address: '', city: '', postalCode: '', country: '' })
+  const [checkoutError, setCheckoutError] = useState('')
+  const [checkoutBusy, setCheckoutBusy] = useState(false)
+  const [shippingMethod, setShippingMethod] = useState('standard')
+  const [orderNumber, setOrderNumber] = useState('')
+  const [completedOrder, setCompletedOrder] = useState(null)
+  const [adminTab, setAdminTab] = useState('products')
+  const [adminProducts, setAdminProducts] = useState([])
+  const [adminArticles, setAdminArticles] = useState([])
+  const [adminOrders, setAdminOrders] = useState([])
+  const [cmsLoading, setCmsLoading] = useState(false)
+  const [cmsSaving, setCmsSaving] = useState(false)
+  const [cmsError, setCmsError] = useState('')
+  const [cmsNotice, setCmsNotice] = useState('')
+  const [editingProductId, setEditingProductId] = useState(null)
+  const [editingArticleId, setEditingArticleId] = useState(null)
+  const [productDraft, setProductDraft] = useState({ name: '', price: '', category: 'Outerwear', color: '', material: '', audience: 'women', sizes: 'XS, S, M, L', gallery: '', description: '' })
+  const [articleDraft, setArticleDraft] = useState({ category: '', title: '', image: '', alt: '', excerpt: '', body: '', status: 'draft' })
+
+  useEffect(() => {
+    const handleScroll = () => setHeaderSolid(window.scrollY > 12)
+    handleScroll()
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((response) => response.json())
+      .then(({ user: currentUser }) => {
+        if (currentUser) {
+          setUser(currentUser)
+          setCheckoutForm((form) => ({ ...form, email: currentUser.email, firstName: currentUser.name.split(' ')[0], lastName: currentUser.name.split(' ').slice(1).join(' ') }))
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    requestJSON('/api/products').then(({ products }) => setProductCatalog(products)).catch(() => {})
+    requestJSON('/api/journal').then(({ articles: publishedArticles }) => setArticles(publishedArticles)).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (currentView !== 'admin' || user?.role !== 'admin') return
+    let cancelled = false
+    setCmsLoading(true)
+    Promise.all([
+      requestJSON('/api/admin/products'),
+      requestJSON('/api/admin/articles'),
+      requestJSON('/api/admin/orders'),
+    ])
+      .then(([{ products }, { articles: cmsArticles }, { orders }]) => {
+        if (cancelled) return
+        setAdminProducts(products)
+        setAdminArticles(cmsArticles)
+        setAdminOrders(orders)
+        setCmsError('')
+      })
+      .catch((requestError) => {
+        if (!cancelled) setCmsError(requestError.message)
+      })
+      .finally(() => {
+        if (!cancelled) setCmsLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [currentView, user])
+
+  const activeCatalog = collectionMode === 'men' ? productCatalog.filter((product) => product.audience === 'men' || product.audience === 'unisex') : productCatalog
+  const selectedProduct = activeCatalog.find((item) => item.id === selectedProductId) || activeCatalog[0]
+
+  const filteredProducts =
+    selectedFilter === 'All'
+      ? activeCatalog
+      : activeCatalog.filter((product) => product.category === selectedFilter)
+
+  const openCollection = (mode = 'new') => {
+    setCollectionMode(mode)
+    setSelectedFilter('All')
+    setCurrentView('plp')
+  }
+
+  const subtotal = bag.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  const shipping = shippingMethod === 'express' ? 40 : subtotal >= 500 ? 0 : 24
+  const total = subtotal + shipping
+
+  const handleAuthSubmit = async (event) => {
+    event.preventDefault()
+    setAuthError('')
+    setAuthBusy(true)
+    try {
+      const response = await fetch(`/api/auth/${authMode === 'register' ? 'register' : 'login'}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(authForm),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Unable to sign in.')
+      setUser(result.user)
+      setCheckoutForm((form) => ({ ...form, firstName: result.user.name.split(' ')[0], lastName: result.user.name.split(' ').slice(1).join(' '), email: result.user.email }))
+      setAuthOpen(false)
+      setAuthForm({ name: '', email: '', password: '' })
+    } catch (requestError) {
+      setAuthError(requestError.message)
+    } finally {
+      setAuthBusy(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    setUser(null)
+  }
+
+  const addProductToBag = (product, size) => {
+    setBag((current) => {
+      const existing = current.find((item) => item.id === product.id && item.size === size)
+      if (existing) {
+        return current.map((item) => item.id === product.id && item.size === size ? { ...item, quantity: item.quantity + 1 } : item)
+      }
+      return [...current, { id: product.id, name: product.name, price: product.price, size, quantity: 1 }]
+    })
+  }
+
+  const handleAddToBag = () => {
+    if (!selectedSize) {
+      setError('Please select a size before adding to bag.')
+      return
+    }
+
+    addProductToBag(selectedProduct, selectedSize)
+    setCartOpen(true)
+    setError('')
+    setSelectedSize('M')
+  }
+
+  const advanceCheckout = () => {
+    const requiredFields = checkoutStep === 0
+      ? ['firstName', 'lastName', 'email', 'phone']
+      : ['address', 'city', 'postalCode', 'country']
+    const missingField = requiredFields.some((field) => !checkoutForm[field].trim())
+    if (missingField || (checkoutStep === 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(checkoutForm.email))) {
+      setCheckoutError('Complete the required fields with a valid email address.')
+      return
+    }
+    setCheckoutError('')
+    setCheckoutStep((step) => Math.min(step + 1, 2))
+  }
+
+  const handlePlaceOrder = async () => {
+    if (!user) {
+      setAuthMode('login')
+      setAuthOpen(true)
+      setCheckoutError('Sign in or create an account to place your order.')
+      return
+    }
+    setCheckoutBusy(true)
+    setCheckoutError('')
+    try {
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: bag.map(({ id, size, quantity }) => ({ id, size, quantity })),
+          address: {
+            name: `${checkoutForm.firstName} ${checkoutForm.lastName}`.trim(),
+            email: checkoutForm.email,
+            phone: checkoutForm.phone,
+            address: checkoutForm.address,
+            city: checkoutForm.city,
+            postalCode: checkoutForm.postalCode,
+            country: checkoutForm.country,
+          },
+          shippingMethod,
+          paymentMethod: 'sandbox',
+        }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Unable to create your order.')
+      setOrderNumber(result.order.orderNumber)
+      setCompletedOrder({ ...result.order, itemCount: bag.reduce((count, item) => count + item.quantity, 0) })
+      setShowSuccess(true)
+      setBag([])
+    } catch (requestError) {
+      setCheckoutError(requestError.message)
+    } finally {
+      setCheckoutBusy(false)
+    }
+  }
+
+  const editProduct = (product) => {
+    setEditingProductId(product.id)
+    setProductDraft({
+      name: product.name,
+      price: String(product.price),
+      category: product.category,
+      color: product.color,
+      material: product.material,
+      audience: product.audience,
+      sizes: product.sizes.join(', '),
+      gallery: product.gallery.join('\n'),
+      description: product.description || '',
+    })
+    setCmsError('')
+    setCmsNotice('')
+  }
+
+  const resetProductDraft = () => {
+    setEditingProductId(null)
+    setProductDraft({ name: '', price: '', category: 'Outerwear', color: '', material: '', audience: 'women', sizes: 'XS, S, M, L', gallery: '', description: '' })
+  }
+
+  const saveProduct = async (event) => {
+    event.preventDefault()
+    setCmsSaving(true)
+    setCmsError('')
+    setCmsNotice('')
+    const payload = {
+      ...productDraft,
+      price: Number(productDraft.price),
+      sizes: productDraft.sizes.split(',').map((size) => size.trim()).filter(Boolean),
+      gallery: productDraft.gallery.split(/\r?\n/).map((image) => image.trim()).filter(Boolean),
+    }
+    try {
+      const result = await requestJSON(editingProductId ? `/api/admin/products/${editingProductId}` : '/api/admin/products', {
+        method: editingProductId ? 'PATCH' : 'POST',
+        body: JSON.stringify(payload),
+      })
+      setAdminProducts((current) => editingProductId
+        ? current.map((product) => product.id === editingProductId ? result.product : product)
+        : [result.product, ...current])
+      const { products } = await requestJSON('/api/products')
+      setProductCatalog(products)
+      setCmsNotice(editingProductId ? 'Product changes saved.' : 'Product added to the storefront.')
+      resetProductDraft()
+    } catch (requestError) {
+      setCmsError(requestError.message)
+    } finally {
+      setCmsSaving(false)
+    }
+  }
+
+  const toggleProductActive = async (product) => {
+    setCmsError('')
+    try {
+      const { product: updatedProduct } = await requestJSON(`/api/admin/products/${product.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive: !product.isActive }),
+      })
+      setAdminProducts((current) => current.map((item) => item.id === product.id ? updatedProduct : item))
+      const { products } = await requestJSON('/api/products')
+      setProductCatalog(products)
+    } catch (requestError) {
+      setCmsError(requestError.message)
+    }
+  }
+
+  const editArticle = (article) => {
+    setEditingArticleId(article.id)
+    setArticleDraft({ category: article.category, title: article.title, image: article.image, alt: article.alt, excerpt: article.excerpt, body: article.body, status: article.status })
+    setCmsError('')
+    setCmsNotice('')
+  }
+
+  const resetArticleDraft = () => {
+    setEditingArticleId(null)
+    setArticleDraft({ category: '', title: '', image: '', alt: '', excerpt: '', body: '', status: 'draft' })
+  }
+
+  const saveArticle = async (event) => {
+    event.preventDefault()
+    setCmsSaving(true)
+    setCmsError('')
+    setCmsNotice('')
+    try {
+      const result = await requestJSON(editingArticleId ? `/api/admin/articles/${editingArticleId}` : '/api/admin/articles', {
+        method: editingArticleId ? 'PATCH' : 'POST',
+        body: JSON.stringify(articleDraft),
+      })
+      setAdminArticles((current) => editingArticleId
+        ? current.map((article) => article.id === editingArticleId ? result.article : article)
+        : [result.article, ...current])
+      const { articles: publishedArticles } = await requestJSON('/api/journal')
+      setArticles(publishedArticles)
+      setCmsNotice(editingArticleId ? 'Article changes saved.' : 'Article saved.')
+      resetArticleDraft()
+    } catch (requestError) {
+      setCmsError(requestError.message)
+    } finally {
+      setCmsSaving(false)
+    }
+  }
+
+  const updateOrderStatus = async (orderId, fulfillmentStatus) => {
+    setCmsError('')
+    try {
+      await requestJSON(`/api/admin/orders/${orderId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ fulfillmentStatus }),
+      })
+      setAdminOrders((current) => current.map((order) => order.id === orderId ? { ...order, fulfillmentStatus } : order))
+    } catch (requestError) {
+      setCmsError(requestError.message)
+    }
+  }
+
+  const setProductValue = (field, value) => setProductDraft((draft) => ({ ...draft, [field]: value }))
+  const setArticleValue = (field, value) => setArticleDraft((draft) => ({ ...draft, [field]: value }))
+
+  const renderView = () => {
+    if (currentView === 'plp') {
+      return (
+        <motion.div key="plp" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -24 }} transition={{ duration: 0.45, ease: 'easeOut' }}>
+          <section className="mx-auto max-w-[1400px] px-4 pb-16 pt-28 md:px-8">
+            {collectionMode === 'men' && (
+              <div className="relative mb-8 h-[320px] overflow-hidden bg-[#E6E4DF] md:h-[460px]">
+                <img src="https://images.unsplash.com/photo-1617137968427-85924c800a22?auto=format&fit=crop&w=1800&q=85" alt="AUREVÉ menswear autumn campaign" className="h-full w-full object-cover object-center" />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/10 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 p-6 text-white md:p-10">
+                  <p className="nav-label mb-3 text-white/75">Autumn / Winter 26 · Menswear</p>
+                  <h2 className="max-w-xl font-display text-5xl leading-none md:text-7xl">Form with purpose.</h2>
+                </div>
+              </div>
+            )}
+            <div className="mb-8 flex items-end justify-between gap-4 border-b border-[#D8D8D4] pb-5">
+              <div>
+                <p className="nav-label text-[#8A8A86]">{collectionMode === 'men' ? 'AUREVÉ Menswear' : 'Collection'}</p>
+                <h1 className="font-display text-5xl md:text-7xl">{collectionMode === 'men' ? "The Men's Collection" : 'Autumn / Winter 26'}</h1>
+              </div>
+              <div className="hidden items-center gap-3 md:flex">
+                <button className="nav-button border border-[#D8D8D4] px-4 py-3 text-[11px] uppercase tracking-[0.28em]" onClick={() => setFiltersOpen(true)}>
+                  Filters
+                </button>
+                <button className="nav-button border border-[#D8D8D4] px-4 py-3 text-[11px] uppercase tracking-[0.28em]">
+                  Sort: Recommended
+                </button>
+              </div>
+            </div>
+            <div className="mb-8 flex gap-3 overflow-x-auto pb-2 md:hidden">
+              {filterOptions.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className={`whitespace-nowrap border px-4 py-3 text-[10px] uppercase tracking-[0.24em] ${
+                    selectedFilter === option ? 'border-black bg-black text-white' : 'border-[#D8D8D4] bg-transparent text-black'
+                  }`}
+                  onClick={() => setSelectedFilter(option)}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+              {filteredProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  onClick={() => {
+                    setSelectedProductId(product.id)
+                    setCurrentView('pdp')
+                  }}
+                  onQuickAdd={() => {
+                    addProductToBag(product, product.sizes[0] || 'One Size')
+                    setCartOpen(true)
+                  }}
+                />
+              ))}
+            </div>
+          </section>
+        </motion.div>
+      )
+    }
+
+    if (currentView === 'pdp') {
+      return (
+        <motion.div key="pdp" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -24 }} transition={{ duration: 0.45, ease: 'easeOut' }}>
+          <section className="mx-auto max-w-[1440px] px-4 pb-20 pt-28 md:px-8">
+            <div className="mb-6 flex items-center gap-2 text-[10px] uppercase tracking-[0.26em] text-[#8A8A86]">
+              <button type="button" className="inline-flex items-center gap-2 hover:text-black" onClick={() => setCurrentView('plp')}>
+                <ChevronRight className="h-3 w-3 rotate-180" />
+                Back to collection
+              </button>
+            </div>
+            <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-4 md:col-span-1">
+                  {selectedProduct.gallery.map((image, index) => (
+                    <button
+                      key={image}
+                      type="button"
+                      className={`relative block h-28 w-full overflow-hidden border transition-colors ${
+                        selectedImageIndex === index ? 'border-black' : 'border-[#D8D8D4]'
+                      }`}
+                      onClick={() => setSelectedImageIndex(index)}
+                    >
+                      <img src={image} alt={selectedProduct.name} className="h-full w-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+                <div className="md:col-span-2">
+                  <div className="relative overflow-hidden border border-[#D8D8D4] bg-[#F7F7F5]">
+                    <img src={selectedProduct.gallery[selectedImageIndex]} alt={selectedProduct.name} className="h-[540px] w-full object-cover md:h-[760px]" />
+                  </div>
+                </div>
+              </div>
+
+              <aside className="lg:sticky lg:top-28 lg:h-fit">
+                <div className="space-y-6 border border-[#D8D8D4] bg-white p-6 md:p-8">
+                  <div className="space-y-3">
+                    <p className="nav-label text-[#8A8A86]">{selectedProduct.category}</p>
+                    <h1 className="font-display text-5xl leading-none">{selectedProduct.name}</h1>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xl">{formatPrice(selectedProduct.price)}</p>
+                      <div className="flex items-center gap-1 text-[10px] uppercase tracking-[0.22em] text-[#8A8A86]">
+                        <Star className="h-3 w-3 fill-black text-black" />
+                        4.9 / 128
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <p className="nav-label text-[#8A8A86]">Select size</p>
+                    <div className="grid grid-cols-4 gap-2">
+                      {sizeOptions.map((size) => {
+                        const isDisabled = !selectedProduct.sizes.includes(size)
+                        const active = selectedSize === size
+                        return (
+                          <button
+                            key={size}
+                            type="button"
+                            disabled={isDisabled}
+                            className={`flex h-12 items-center justify-center border text-[11px] uppercase tracking-[0.18em] transition-all ${
+                              active
+                                ? 'border-black bg-black text-white'
+                                : isDisabled
+                                  ? 'border-[#E9E9E6] bg-[#F7F7F5] text-[#8A8A86]'
+                                  : 'border-[#D8D8D4] bg-white text-black hover:border-black'
+                            } ${error ? 'animate-[shake_0.35s_ease-in-out]' : ''}`}
+                            onClick={() => {
+                              setSelectedSize(size)
+                              setError('')
+                            }}
+                          >
+                            {size}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {error && <p className="text-sm text-[#B3261E]">{error}</p>}
+                  </div>
+
+                  <button
+                    type="button"
+                    className="w-full border border-black bg-black px-6 py-4 text-[11px] uppercase tracking-[0.26em] text-white transition-colors hover:bg-[#30302E] focus-ring"
+                    onClick={handleAddToBag}
+                  >
+                    Add to bag
+                  </button>
+
+                  <div className="space-y-3 border-t border-[#D8D8D4] pt-4">
+                    {[
+                      { key: 'composition', label: 'Composition', content: 'Italian wool blend with satin lining. Designed for a softly structured silhouette.' },
+                      { key: 'care', label: 'Care', content: 'Dry clean only. Spot clean immediately if exposure to moisture occurs.' },
+                      { key: 'shipping', label: 'Shipping', content: 'Complimentary express shipping on all orders above $500.' },
+                    ].map((item) => (
+                      <AccordionItem
+                        key={item.key}
+                        title={item.label}
+                        content={item.content}
+                        isOpen={openAccordion === item.key}
+                        onToggle={() => setOpenAccordion(openAccordion === item.key ? '' : item.key)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </section>
+        </motion.div>
+      )
+    }
+
+    if (currentView === 'journal') {
+      return (
+        <motion.div key="journal" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -24 }} transition={{ duration: 0.45, ease: 'easeOut' }}>
+          <section className="mx-auto max-w-[1440px] px-4 pb-20 pt-28 md:px-8">
+            <div className="mb-8 border-b border-[#D8D8D4] pb-6">
+              <p className="nav-label text-[#8A8A86]">Notes on modern living</p>
+              <h1 className="font-display text-6xl md:text-8xl">The Journal</h1>
+            </div>
+
+            <button type="button" className="group relative block w-full overflow-hidden text-left" onClick={() => openCollection()}>
+              <img src="https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=1800&q=85" alt="Autumn fashion editorial" className="h-[440px] w-full object-cover transition-transform duration-700 group-hover:scale-[1.02] md:h-[660px]" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-6 text-white md:p-12">
+                <p className="nav-label mb-3 text-white/75">Autumn / Winter 26 · The edit</p>
+                <h2 className="max-w-3xl font-display text-5xl leading-[0.95] md:text-7xl">A study in considered layers</h2>
+                <span className="mt-5 inline-flex items-center gap-3 text-[10px] uppercase tracking-[0.26em]">Explore the collection <ArrowRight className="h-4 w-4" /></span>
+              </div>
+            </button>
+
+            <div className="mt-16 grid gap-10 md:grid-cols-[0.7fr_1.3fr]">
+              <div>
+                <p className="nav-label text-[#8A8A86]">From the journal</p>
+                <h2 className="mt-3 font-display text-5xl leading-none md:text-6xl">Objects, people, places.</h2>
+              </div>
+              <div className="grid gap-x-5 gap-y-10 sm:grid-cols-2">
+                {articles.map((story) => (
+                  <button key={story.id} type="button" className="group text-left" onClick={() => { setSelectedArticle(story); setCurrentView('article'); }}>
+                    <img src={story.image} alt={story.alt} className="aspect-[4/5] w-full object-cover transition-transform duration-500 group-hover:scale-[1.01]" />
+                    <p className="nav-label mt-4 text-[#8A8A86]">{story.category}</p>
+                    <h3 className="mt-2 font-display text-3xl leading-tight">{story.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-[#8A8A86]">{story.excerpt}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+        </motion.div>
+      )
+    }
+
+    if (currentView === 'article' && selectedArticle) {
+      return (
+        <motion.article key={`article-${selectedArticle.id}`} initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -24 }} transition={{ duration: 0.45, ease: 'easeOut' }} className="mx-auto max-w-[1100px] px-4 pb-20 pt-28 md:px-8">
+          <button type="button" className="mb-8 inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-[#8A8A86] hover:text-black" onClick={() => setCurrentView('journal')}>
+            <ChevronRight className="h-3 w-3 rotate-180" /> Back to Journal
+          </button>
+          <img src={selectedArticle.image} alt={selectedArticle.alt} className="max-h-[680px] w-full object-cover" />
+          <div className="mx-auto max-w-[720px] py-10">
+            <p className="nav-label text-[#8A8A86]">{selectedArticle.category}</p>
+            <h1 className="mt-3 font-display text-5xl leading-[0.95] md:text-7xl">{selectedArticle.title}</h1>
+            <p className="mt-5 border-b border-[#D8D8D4] pb-6 text-lg leading-relaxed text-[#686864]">{selectedArticle.excerpt}</p>
+            <div className="whitespace-pre-line py-8 text-base leading-8 text-[#30302E]">{selectedArticle.body}</div>
+          </div>
+        </motion.article>
+      )
+    }
+
+    if (currentView === 'admin') {
+      if (user?.role !== 'admin') {
+        return (
+          <section className="mx-auto max-w-2xl px-4 pb-20 pt-36 text-center">
+            <p className="nav-label text-[#8A8A86]">Restricted area</p>
+            <h1 className="mt-3 font-display text-5xl">Admin access required</h1>
+            <p className="mt-4 text-sm text-[#8A8A86]">Sign in with an administrator account to manage AUREVÉ content.</p>
+            <button type="button" className="mt-6 border border-black bg-black px-6 py-4 text-[10px] uppercase tracking-[0.24em] text-white" onClick={() => { setAuthMode('login'); setAuthOpen(true); }}>
+              Sign in
+            </button>
+          </section>
+        )
+      }
+
+      return (
+        <motion.div key="admin" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.35, ease: 'easeOut' }}>
+          <section className="mx-auto max-w-[1440px] px-4 pb-20 pt-28 md:px-8">
+            <div className="mb-8 flex flex-wrap items-end justify-between gap-5 border-b border-[#D8D8D4] pb-6">
+              <div>
+                <p className="nav-label text-[#8A8A86]">AUREVÉ · Administration</p>
+                <h1 className="font-display text-6xl md:text-7xl">Content studio</h1>
+              </div>
+              <button type="button" className="border border-[#D8D8D4] bg-white px-5 py-3 text-[10px] uppercase tracking-[0.24em]" onClick={() => setCurrentView('home')}>
+                View storefront
+              </button>
+            </div>
+
+            <div role="tablist" aria-label="CMS sections" className="mb-8 flex overflow-x-auto border-b border-[#D8D8D4]">
+              {[
+                { id: 'products', label: `Products (${adminProducts.length})` },
+                { id: 'articles', label: `Journal (${adminArticles.length})` },
+                { id: 'orders', label: `Orders (${adminOrders.length})` },
+              ].map((tab) => (
+                <button key={tab.id} type="button" role="tab" aria-selected={adminTab === tab.id} className={`whitespace-nowrap border-b-2 px-5 py-4 text-[10px] uppercase tracking-[0.22em] ${adminTab === tab.id ? 'border-black text-black' : 'border-transparent text-[#8A8A86]'}`} onClick={() => { setAdminTab(tab.id); setCmsError(''); setCmsNotice(''); }}>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {cmsError && <p role="alert" className="mb-5 border border-[#B3261E]/30 bg-white px-4 py-3 text-sm text-[#B3261E]">{cmsError}</p>}
+            {cmsNotice && <p role="status" className="mb-5 border border-[#D8D8D4] bg-white px-4 py-3 text-sm">{cmsNotice}</p>}
+            {cmsLoading ? (
+              <p className="py-12 text-sm text-[#8A8A86]">Loading content…</p>
+            ) : (
+              <>
+                {adminTab === 'products' && (
+                  <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+                    <section aria-label="Product list">
+                      <div className="mb-4 flex items-end justify-between border-b border-[#D8D8D4] pb-3">
+                        <div>
+                          <p className="nav-label text-[#8A8A86]">Catalog</p>
+                          <h2 className="font-display text-4xl">Products</h2>
+                        </div>
+                        <button type="button" className="border border-black bg-black px-4 py-3 text-[10px] uppercase tracking-[0.2em] text-white" onClick={resetProductDraft}>
+                          Add product
+                        </button>
+                      </div>
+                      <div className="divide-y divide-[#D8D8D4]">
+                        {adminProducts.map((product) => (
+                          <div key={product.id} className="flex flex-wrap items-center gap-4 py-4">
+                            <img src={product.gallery[0]} alt={product.name} className="h-20 w-16 border border-[#D8D8D4] object-cover" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium">{product.name}</p>
+                              <p className="mt-1 text-xs text-[#8A8A86]">{product.category} · {product.audience} · {formatPrice(product.price)}</p>
+                              <p className="mt-1 text-[10px] uppercase tracking-[0.18em]">{product.isActive ? 'Live' : 'Hidden'}</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button type="button" className="border border-[#D8D8D4] bg-white px-3 py-2 text-[10px] uppercase tracking-[0.15em]" onClick={() => editProduct(product)}>Edit</button>
+                              <button type="button" className="border border-[#D8D8D4] bg-white px-3 py-2 text-[10px] uppercase tracking-[0.15em]" onClick={() => toggleProductActive(product)}>{product.isActive ? 'Hide' : 'Publish'}</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+
+                    <form className="space-y-4 border border-[#D8D8D4] bg-white p-5 md:p-6" onSubmit={saveProduct}>
+                      <div className="flex items-start justify-between gap-4 border-b border-[#D8D8D4] pb-4">
+                        <div>
+                          <p className="nav-label text-[#8A8A86]">{editingProductId ? 'Edit listing' : 'New listing'}</p>
+                          <h2 className="font-display text-3xl">{editingProductId ? 'Product details' : 'Add product'}</h2>
+                        </div>
+                        {editingProductId && <button type="button" className="text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]" onClick={resetProductDraft}>Clear</button>}
+                      </div>
+                      <CmsField label="Product name" value={productDraft.name} onChange={(value) => setProductValue('name', value)} required />
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <CmsField label="Price (USD)" type="number" value={productDraft.price} onChange={(value) => setProductValue('price', value)} required />
+                        <CmsField label="Category" value={productDraft.category} onChange={(value) => setProductValue('category', value)} required />
+                        <CmsField label="Color" value={productDraft.color} onChange={(value) => setProductValue('color', value)} required />
+                        <CmsField label="Material" value={productDraft.material} onChange={(value) => setProductValue('material', value)} required />
+                        <label className="block"><span className="mb-2 block text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]">Audience</span><select value={productDraft.audience} onChange={(event) => setProductValue('audience', event.target.value)} className="w-full border-b border-[#D8D8D4] bg-transparent py-3 text-sm"><option value="women">Women</option><option value="men">Men</option><option value="unisex">Unisex</option></select></label>
+                        <CmsField label="Sizes (comma separated)" value={productDraft.sizes} onChange={(value) => setProductValue('sizes', value)} required />
+                      </div>
+                      <CmsField label="Image URLs (one per line)" type="textarea" rows={3} value={productDraft.gallery} onChange={(value) => setProductValue('gallery', value)} required />
+                      <CmsField label="Description" type="textarea" rows={3} value={productDraft.description} onChange={(value) => setProductValue('description', value)} />
+                      <button type="submit" disabled={cmsSaving} className="w-full border border-black bg-black px-5 py-4 text-[10px] uppercase tracking-[0.22em] text-white disabled:opacity-50">{cmsSaving ? 'Saving' : editingProductId ? 'Save product' : 'Create product'}</button>
+                    </form>
+                  </div>
+                )}
+
+                {adminTab === 'articles' && (
+                  <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+                    <section aria-label="Journal article list">
+                      <div className="mb-4 flex items-end justify-between border-b border-[#D8D8D4] pb-3">
+                        <div><p className="nav-label text-[#8A8A86]">Editorial</p><h2 className="font-display text-4xl">Journal</h2></div>
+                        <button type="button" className="border border-black bg-black px-4 py-3 text-[10px] uppercase tracking-[0.2em] text-white" onClick={resetArticleDraft}>New article</button>
+                      </div>
+                      <div className="divide-y divide-[#D8D8D4]">
+                        {adminArticles.map((article) => (
+                          <div key={article.id} className="flex items-center gap-4 py-4">
+                            <img src={article.image} alt={article.alt} className="h-20 w-16 object-cover" />
+                            <div className="min-w-0 flex-1"><p className="text-sm font-medium">{article.title}</p><p className="mt-1 text-xs text-[#8A8A86]">{article.category} · {article.status}</p></div>
+                            <button type="button" className="border border-[#D8D8D4] bg-white px-3 py-2 text-[10px] uppercase tracking-[0.15em]" onClick={() => editArticle(article)}>Edit</button>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+
+                    <form className="space-y-4 border border-[#D8D8D4] bg-white p-5 md:p-6" onSubmit={saveArticle}>
+                      <div className="border-b border-[#D8D8D4] pb-4"><p className="nav-label text-[#8A8A86]">{editingArticleId ? 'Edit story' : 'New story'}</p><h2 className="font-display text-3xl">Article details</h2></div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <CmsField label="Category" value={articleDraft.category} onChange={(value) => setArticleValue('category', value)} required />
+                        <label className="block"><span className="mb-2 block text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]">Status</span><select value={articleDraft.status} onChange={(event) => setArticleValue('status', event.target.value)} className="w-full border-b border-[#D8D8D4] bg-transparent py-3 text-sm"><option value="draft">Draft</option><option value="published">Published</option></select></label>
+                      </div>
+                      <CmsField label="Title" value={articleDraft.title} onChange={(value) => setArticleValue('title', value)} required />
+                      <CmsField label="Cover image URL" value={articleDraft.image} onChange={(value) => setArticleValue('image', value)} required />
+                      <CmsField label="Image alt text" value={articleDraft.alt} onChange={(value) => setArticleValue('alt', value)} required />
+                      <CmsField label="Excerpt" type="textarea" rows={2} value={articleDraft.excerpt} onChange={(value) => setArticleValue('excerpt', value)} required />
+                      <CmsField label="Article body" type="textarea" rows={8} value={articleDraft.body} onChange={(value) => setArticleValue('body', value)} required />
+                      <button type="submit" disabled={cmsSaving} className="w-full border border-black bg-black px-5 py-4 text-[10px] uppercase tracking-[0.22em] text-white disabled:opacity-50">{cmsSaving ? 'Saving' : editingArticleId ? 'Save article' : 'Save article'}</button>
+                    </form>
+                  </div>
+                )}
+
+                {adminTab === 'orders' && (
+                  <section aria-label="Order management">
+                    <div className="mb-4 border-b border-[#D8D8D4] pb-3"><p className="nav-label text-[#8A8A86]">Store operations</p><h2 className="font-display text-4xl">Orders</h2></div>
+                    {adminOrders.length === 0 ? <p className="py-10 text-sm text-[#8A8A86]">No orders yet.</p> : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+                          <thead><tr className="border-b border-[#D8D8D4] text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]"><th className="py-3 pr-4">Order</th><th className="py-3 pr-4">Customer</th><th className="py-3 pr-4">Delivery</th><th className="py-3 pr-4">Total</th><th className="py-3">Status</th></tr></thead>
+                          <tbody>{adminOrders.map((order) => (
+                            <tr key={order.id} className="border-b border-[#D8D8D4] align-top">
+                              <td className="py-4 pr-4"><p>{order.orderNumber}</p><p className="mt-1 text-xs text-[#8A8A86]">{order.itemCount} line items</p></td>
+                              <td className="py-4 pr-4"><p>{order.customerName}</p><p className="mt-1 text-xs text-[#8A8A86]">{order.customerEmail}</p></td>
+                              <td className="py-4 pr-4"><p className="capitalize">{order.shippingMethod}</p><p className="mt-1 text-xs text-[#8A8A86]">{order.shippingAddress.city}, {order.shippingAddress.country}</p></td>
+                              <td className="py-4 pr-4">{formatPrice(order.total)}</td>
+                              <td className="py-4"><select aria-label={`Fulfillment status for ${order.orderNumber}`} value={order.fulfillmentStatus} onChange={(event) => updateOrderStatus(order.id, event.target.value)} className="border border-[#D8D8D4] bg-white px-2 py-2 text-xs"><option value="processing">Processing</option><option value="packed">Packed</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option></select></td>
+                            </tr>
+                          ))}</tbody>
+                        </table>
+                      </div>
+                    )}
+                  </section>
+                )}
+              </>
+            )}
+          </section>
+        </motion.div>
+      )
+    }
+
+    if (currentView === 'checkout') {
+      return (
+        <motion.div key="checkout" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -24 }} transition={{ duration: 0.45, ease: 'easeOut' }}>
+          <section className="mx-auto max-w-[1440px] px-4 pb-20 pt-28 md:px-8">
+            <div className="grid gap-8 lg:grid-cols-[1.25fr_0.75fr]">
+              <div className="space-y-8">
+                <div className="flex items-center justify-between border-b border-[#D8D8D4] pb-5">
+                  <div>
+                    <p className="nav-label text-[#8A8A86]">Checkout</p>
+                    <h1 className="font-display text-5xl">AUREVÉ</h1>
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-[#8A8A86]">
+                    {['Information', 'Shipping', 'Payment', 'Complete'].map((label, index) => (
+                      <div key={label} className="flex items-center gap-2">
+                        <div className={`flex h-6 w-6 items-center justify-center border ${checkoutStep >= index ? 'border-black bg-black text-white' : 'border-[#D8D8D4] bg-white text-[#8A8A86]'}`}>
+                          {index + 1}
+                        </div>
+                        {index < 3 && <span className="hidden md:inline">{label}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-none border border-[#D8D8D4] bg-white p-6 md:p-8">
+                  {showSuccess ? (
+                    <div className="space-y-8 py-8 text-center">
+                      <div className="mx-auto flex h-14 w-14 items-center justify-center border border-black bg-black text-white">
+                        <Check className="h-7 w-7" />
+                      </div>
+                      <div>
+                        <p className="nav-label text-[#8A8A86]">Order complete</p>
+                        <h2 className="font-display text-5xl">Your order is recorded.</h2>
+                      </div>
+                      <p className="mx-auto max-w-lg text-sm text-[#8A8A86]">
+                        Order {orderNumber} is saved in demo mode. No payment was taken. A live payment provider and shipping carrier are not connected yet.
+                      </p>
+                      <button type="button" className="border border-black bg-black px-6 py-4 text-[11px] uppercase tracking-[0.28em] text-white hover:bg-[#30302E]" onClick={() => { setCurrentView('home'); setShowSuccess(false); setCheckoutStep(0); }}>
+                        Continue shopping
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {checkoutStep === 0 && (
+                        <div className="space-y-6">
+                          <div>
+                            <p className="nav-label text-[#8A8A86]">Information</p>
+                            <h2 className="font-display text-4xl">Contact details</h2>
+                          </div>
+                          <div className="grid gap-5 md:grid-cols-2">
+                            <InputField label="First name" value={checkoutForm.firstName} onChange={(value) => setCheckoutForm((form) => ({ ...form, firstName: value }))} required />
+                            <InputField label="Last name" value={checkoutForm.lastName} onChange={(value) => setCheckoutForm((form) => ({ ...form, lastName: value }))} required />
+                            <div className="md:col-span-2"><InputField label="Email address" type="email" value={checkoutForm.email} onChange={(value) => setCheckoutForm((form) => ({ ...form, email: value }))} required /></div>
+                            <div className="md:col-span-2"><InputField label="Phone" type="tel" value={checkoutForm.phone} onChange={(value) => setCheckoutForm((form) => ({ ...form, phone: value }))} required /></div>
+                          </div>
+                        </div>
+                      )}
+
+                      {checkoutStep === 1 && (
+                        <div className="space-y-6">
+                          <div>
+                            <p className="nav-label text-[#8A8A86]">Shipping</p>
+                            <h2 className="font-display text-4xl">Delivery information</h2>
+                          </div>
+                          <div className="grid gap-5 md:grid-cols-2">
+                            <div className="md:col-span-2"><InputField label="Address" value={checkoutForm.address} onChange={(value) => setCheckoutForm((form) => ({ ...form, address: value }))} required /></div>
+                            <InputField label="City" value={checkoutForm.city} onChange={(value) => setCheckoutForm((form) => ({ ...form, city: value }))} required />
+                            <InputField label="Postal code" value={checkoutForm.postalCode} onChange={(value) => setCheckoutForm((form) => ({ ...form, postalCode: value }))} required />
+                            <div className="md:col-span-2"><InputField label="Country" value={checkoutForm.country} onChange={(value) => setCheckoutForm((form) => ({ ...form, country: value }))} required /></div>
+                            <div className="space-y-3 md:col-span-2">
+                              <p className="nav-label text-[#8A8A86]">Shipping method</p>
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                {[
+                                  { id: 'standard', label: 'Standard', timing: '3-5 business days', price: subtotal >= 500 ? 'Complimentary' : formatPrice(24) },
+                                  { id: 'express', label: 'Express', timing: '1-2 business days', price: formatPrice(40) },
+                                ].map((method) => (
+                                  <button key={method.id} type="button" aria-pressed={shippingMethod === method.id} className={`border p-4 text-left ${shippingMethod === method.id ? 'border-black bg-[#F7F7F5]' : 'border-[#D8D8D4] bg-white'}`} onClick={() => setShippingMethod(method.id)}>
+                                    <span className="flex items-center justify-between text-sm font-medium">{method.label}<span>{method.price}</span></span>
+                                    <span className="mt-2 block text-xs text-[#8A8A86]">{method.timing}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {checkoutStep === 2 && (
+                        <div className="space-y-6">
+                          <div>
+                            <p className="nav-label text-[#8A8A86]">Payment</p>
+                            <h2 className="font-display text-4xl">Secure payment</h2>
+                          </div>
+                          <div className="border border-[#D8D8D4] bg-[#F7F7F5] p-5">
+                            <p className="text-sm font-medium">Demo payment</p>
+                            <p className="mt-2 text-sm text-[#8A8A86]">This creates an order with payment pending. No card details are collected and no money will be charged.</p>
+                            <p className="mt-4 text-[10px] uppercase tracking-[0.2em]">Live payment gateway not connected</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {checkoutError && <p role="alert" className="text-sm text-[#B3261E]">{checkoutError}</p>}
+
+                      <div className="flex justify-between gap-4 pt-4">
+                        <button type="button" className="border border-[#D8D8D4] px-5 py-3 text-[10px] uppercase tracking-[0.24em] disabled:opacity-30" disabled={checkoutStep === 0} onClick={() => setCheckoutStep((step) => step - 1)}>
+                          Back
+                        </button>
+                        <button type="button" disabled={checkoutBusy} className="border border-black bg-black px-6 py-3 text-[10px] uppercase tracking-[0.24em] text-white hover:bg-[#30302E] disabled:opacity-50" onClick={checkoutStep === 2 ? handlePlaceOrder : advanceCheckout}>
+                          {checkoutBusy ? 'Saving order' : checkoutStep === 2 ? 'Place demo order' : 'Continue'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <aside className="lg:sticky lg:top-28 lg:h-fit">
+                <div className="border border-[#D8D8D4] bg-[#F7F7F5] p-6 md:p-8">
+                  <div className="mb-6 flex items-center justify-between border-b border-[#D8D8D4] pb-4">
+                    <p className="nav-label text-[#8A8A86]">Order summary</p>
+                    <span className="text-sm text-black">{showSuccess ? completedOrder?.itemCount || 0 : bag.length} items</span>
+                  </div>
+                  <div className="space-y-4">
+                    {bag.map((item) => (
+                      <div key={`${item.id}-${item.size}`} className="flex gap-4 border-b border-[#D8D8D4] pb-4">
+                        <div className="h-20 w-16 overflow-hidden border border-[#D8D8D4] bg-white">
+                          <img src={productCatalog.find((product) => product.id === item.id)?.gallery[0]} alt={item.name} className="h-full w-full object-cover" />
+                        </div>
+                        <div className="flex w-full flex-col justify-between">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-medium">{item.name}</p>
+                              <p className="text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]">Size {item.size}</p>
+                            </div>
+                            <p className="text-sm">{formatPrice(item.price * item.quantity)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-6 space-y-3 text-sm">
+                    <div className="flex items-center justify-between"><span>Subtotal</span><span>{formatPrice(showSuccess ? completedOrder?.subtotal || 0 : subtotal)}</span></div>
+                    <div className="flex items-center justify-between"><span>Shipping</span><span>{(showSuccess ? completedOrder?.shipping : shipping) === 0 ? 'Free' : formatPrice(showSuccess ? completedOrder?.shipping || 0 : shipping)}</span></div>
+                    <div className="flex items-center justify-between border-t border-[#D8D8D4] pt-3 text-base font-medium"><span>Total</span><span>{formatPrice(showSuccess ? completedOrder?.total || 0 : total)}</span></div>
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </section>
+        </motion.div>
+      )
+    }
+
+    return (
+      <motion.div key="home" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.45, ease: 'easeOut' }}>
+        <section className="relative h-[92vh] min-h-[680px] overflow-hidden">
+          <img src="https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1600&q=80" alt="AUREVÉ editorial hero" className="h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-black/10 to-black/30" />
+          <div className="absolute inset-x-0 bottom-0 p-6 text-white md:p-12">
+            <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.15 }} className="max-w-xl">
+              <p className="nav-label mb-4 text-white/70">Autumn / Winter 26</p>
+              <h1 className="font-display text-6xl leading-[0.9] md:text-[7rem]">Quiet luxury in motion.</h1>
+              <div className="mt-6 flex items-center gap-4">
+                <button type="button" className="inline-flex items-center gap-3 border border-white bg-white px-6 py-4 text-[11px] uppercase tracking-[0.26em] text-black transition-colors hover:bg-[#F7F7F5] focus-ring" onClick={() => openCollection()}>
+                  Shop new in <ArrowRight className="h-4 w-4" />
+                </button>
+                <button type="button" className="border border-white/70 bg-transparent px-6 py-4 text-[11px] uppercase tracking-[0.26em] text-white focus-ring" onClick={() => setCurrentView('pdp')}>
+                  Explore lookbook
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-[1400px] px-4 py-20 md:px-8">
+          <div className="mb-8 flex items-end justify-between gap-4">
+            <div>
+              <p className="nav-label text-[#8A8A86]">New in</p>
+              <h2 className="font-display text-5xl md:text-6xl">Essential pieces</h2>
+            </div>
+            <button type="button" className="hidden border border-[#D8D8D4] px-5 py-3 text-[10px] uppercase tracking-[0.24em] md:inline-flex" onClick={() => openCollection()}>
+              View all
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            {productCatalog.slice(0, 4).map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                onClick={() => {
+                  setSelectedProductId(product.id)
+                  setCurrentView('pdp')
+                }}
+                onQuickAdd={() => {
+                  addProductToBag(product, product.sizes[0] || 'One Size')
+                  setCartOpen(true)
+                }}
+              />
+            ))}
+          </div>
+        </section>
+
+        <section className="relative overflow-hidden border-t border-[#D8D8D4]">
+          <img src="https://images.unsplash.com/photo-1504593811423-6dd665756598?auto=format&fit=crop&w=1800&q=80" alt="AUREVÉ editorial campaign" className="h-[480px] w-full object-cover md:h-[780px]" />
+          <div className="absolute inset-x-0 bottom-0 flex flex-col gap-5 bg-gradient-to-t from-black/40 to-transparent p-6 text-white md:p-12">
+            <p className="nav-label text-white/70">Editorial</p>
+            <h2 className="font-display text-5xl md:text-7xl">Material memory.</h2>
+            <button type="button" className="inline-flex w-fit items-center gap-3 border border-white bg-white px-6 py-4 text-[11px] uppercase tracking-[0.26em] text-black focus-ring" onClick={() => openCollection()}>
+              Discover the story <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+        </section>
+      </motion.div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-[#F7F7F5] text-black">
+      <header className={`fixed inset-x-0 top-0 z-50 border-b border-transparent transition-all duration-300 ${headerSolid ? 'border-[#D8D8D4] bg-white/95 backdrop-blur-sm' : 'bg-transparent'}`}>
+        <div className="mx-auto flex h-20 max-w-[1440px] items-center justify-between px-4 md:px-8">
+          <div className="flex items-center gap-6">
+            <button type="button" className="flex h-10 w-10 items-center justify-center border border-black/0 md:hidden" onClick={() => setMobileMenuOpen(true)} aria-label="Open mobile navigation">
+              <Menu className="h-5 w-5" />
+            </button>
+            <button type="button" className="hidden items-center gap-2 md:flex" onClick={() => setCurrentView('home')}>
+              <span className="font-display text-4xl leading-none">AUREVÉ</span>
+            </button>
+            <nav className="hidden items-center gap-8 md:flex">
+                {[...navItems, ...(user?.role === 'admin' ? ['CMS'] : [])].map((item) => (
+                  <button key={item} type="button" className="nav-label text-black hover:text-[#8A8A86]" onClick={() => { if (item === 'CMS') setCurrentView('admin'); else if (item === 'Journal') setCurrentView('journal'); else if (item === 'New In' || item === 'Men') openCollection(item === 'Men' ? 'men' : 'new'); else setCurrentView('home'); }}>
+                  {item}
+                </button>
+              ))}
+            </nav>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button type="button" className="flex h-10 w-10 items-center justify-center border border-[#D8D8D4] bg-transparent text-black focus-ring" aria-label="Search">
+              <Search className="h-4 w-4" />
+            </button>
+            <button type="button" className="hidden h-10 w-10 items-center justify-center border border-[#D8D8D4] bg-transparent text-black md:flex focus-ring" aria-label={user ? `Account for ${user.name}` : 'Account'} onClick={() => { setAuthError(''); setAuthOpen(true); }}>
+              <User className="h-4 w-4" />
+            </button>
+            <button type="button" className="relative flex h-10 w-10 items-center justify-center border border-[#D8D8D4] bg-transparent text-black focus-ring" aria-label="Shopping bag" onClick={() => setCartOpen(true)}>
+              <ShoppingBag className="h-4 w-4" />
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center bg-black px-1 text-[9px] text-white">{bag.length}</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main>{renderView()}</main>
+
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-[#F7F7F5] md:hidden">
+            <div className="flex items-center justify-between border-b border-[#D8D8D4] px-4 py-5">
+              <span className="font-display text-3xl">AUREVÉ</span>
+              <button type="button" className="flex h-10 w-10 items-center justify-center border border-[#D8D8D4]" onClick={() => setMobileMenuOpen(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex h-[calc(100%-80px)] flex-col justify-between p-6">
+              <div className="space-y-5">
+                {[...navItems, ...(user?.role === 'admin' ? ['CMS'] : [])].map((item) => (
+                  <button key={item} type="button" className="block w-full border-b border-[#D8D8D4] py-4 text-left text-2xl font-display" onClick={() => { if (item === 'CMS') setCurrentView('admin'); else if (item === 'Journal') setCurrentView('journal'); else if (item === 'New In' || item === 'Men') openCollection(item === 'Men' ? 'men' : 'new'); else setCurrentView('home'); setMobileMenuOpen(false); }}>
+                    {item}
+                  </button>
+                ))}
+              </div>
+              <button type="button" className="border border-black bg-black px-5 py-4 text-[10px] uppercase tracking-[0.26em] text-white" onClick={() => { setAuthOpen(true); setMobileMenuOpen(false); }}>
+                Login / Register
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {authOpen && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[110] flex items-end justify-center bg-black/40 backdrop-blur-[2px] md:items-center md:p-4">
+            <motion.div initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }} transition={{ duration: 0.28, ease: 'easeOut' }} className="relative mx-auto max-h-[90vh] w-full max-w-[560px] overflow-y-auto border border-[#D8D8D4] bg-[#F7F7F5] p-6">
+              <div className="mb-6 flex items-center justify-between">
+                <div>
+                  <p className="nav-label text-[#8A8A86]">Account</p>
+                  <h3 className="font-display text-4xl">{user ? 'Your account' : authMode === 'register' ? 'Create account' : 'Welcome back'}</h3>
+                </div>
+                <button type="button" className="flex h-10 w-10 items-center justify-center border border-[#D8D8D4] bg-white" onClick={() => setAuthOpen(false)}>
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              {user ? (
+                <div className="space-y-5">
+                  <p className="text-sm">Signed in as <strong>{user.email}</strong></p>
+                  {user.role === 'admin' && <button type="button" className="mr-3 border border-[#D8D8D4] bg-white px-5 py-3 text-[10px] uppercase tracking-[0.24em]" onClick={() => { setCurrentView('admin'); setAuthOpen(false); }}>Open CMS</button>}
+                  <button type="button" className="border border-black bg-black px-5 py-3 text-[10px] uppercase tracking-[0.24em] text-white" onClick={handleLogout}>
+                    Sign out
+                  </button>
+                </div>
+              ) : (
+                <form className="space-y-5" onSubmit={handleAuthSubmit}>
+                  <div className="space-y-4">
+                    {authMode === 'register' && (
+                      <InputField label="Full name" value={authForm.name} onChange={(value) => setAuthForm((form) => ({ ...form, name: value }))} required autoComplete="name" />
+                    )}
+                    <InputField label="Email address" type="email" value={authForm.email} onChange={(value) => setAuthForm((form) => ({ ...form, email: value }))} required autoComplete="email" />
+                    <InputField label="Password" type="password" value={authForm.password} onChange={(value) => setAuthForm((form) => ({ ...form, password: value }))} required autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} />
+                  </div>
+                  {authError && <p role="alert" className="text-sm text-[#B3261E]">{authError}</p>}
+                  <button type="submit" disabled={authBusy} className="w-full border border-black bg-black px-5 py-4 text-[10px] uppercase tracking-[0.24em] text-white disabled:opacity-50">
+                    {authBusy ? 'Please wait' : authMode === 'register' ? 'Create account' : 'Sign in'}
+                  </button>
+                  <button type="button" className="w-full py-2 text-[10px] uppercase tracking-[0.2em] text-[#8A8A86]" onClick={() => { setAuthMode(authMode === 'register' ? 'login' : 'register'); setAuthError(''); }}>
+                    {authMode === 'register' ? 'Already have an account? Sign in' : 'New to AUREVÉ? Create an account'}
+                  </button>
+                </form>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {filtersOpen && (
+          <motion.aside initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ duration: 0.32, ease: 'easeOut' }} className="fixed right-0 top-0 z-[120] h-screen w-full max-w-md border-l border-[#D8D8D4] bg-[#F7F7F5] p-6">
+            <div className="mb-6 flex items-center justify-between border-b border-[#D8D8D4] pb-4">
+              <div>
+                <p className="nav-label text-[#8A8A86]">Refine</p>
+                <h3 className="font-display text-4xl">Filters</h3>
+              </div>
+              <button type="button" className="flex h-10 w-10 items-center justify-center border border-[#D8D8D4] bg-white" onClick={() => setFiltersOpen(false)}>
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <p className="nav-label text-[#8A8A86]">Category</p>
+                <div className="mt-3 space-y-2">
+                  {filterOptions.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => {
+                        setSelectedFilter(option)
+                        setFiltersOpen(false)
+                        setCurrentView('plp')
+                      }}
+                      className={`flex w-full items-center justify-between border px-4 py-3 text-left text-sm ${selectedFilter === option ? 'border-black bg-black text-white' : 'border-[#D8D8D4] bg-white text-black'}`}
+                    >
+                      <span>{option}</span>
+                      {selectedFilter === option && <Check className="h-4 w-4" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="nav-label text-[#8A8A86]">Price</p>
+                <div className="mt-3 flex items-center justify-between border border-[#D8D8D4] bg-white px-4 py-3">
+                  <span className="text-sm">£100 - £600</span>
+                  <SlidersHorizontal className="h-4 w-4" />
+                </div>
+              </div>
+            </div>
+          </motion.aside>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {cartOpen && (
+          <motion.aside initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ duration: 0.32, ease: 'easeOut' }} className="fixed right-0 top-0 z-[130] h-screen w-full max-w-md border-l border-[#D8D8D4] bg-[#F7F7F5] p-6">
+            <div className="mb-6 flex items-center justify-between border-b border-[#D8D8D4] pb-4">
+              <div>
+                <p className="nav-label text-[#8A8A86]">Your bag</p>
+                <h3 className="font-display text-4xl">{bag.length} items</h3>
+              </div>
+              <button type="button" className="flex h-10 w-10 items-center justify-center border border-[#D8D8D4] bg-white" onClick={() => setCartOpen(false)}>
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {bag.length === 0 ? (
+              <div className="flex h-[calc(100%-90px)] flex-col items-center justify-center gap-6 text-center">
+                <div className="flex h-16 w-16 items-center justify-center border border-[#D8D8D4] bg-white">
+                  <ShoppingBag className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="font-display text-4xl">Your bag is empty</p>
+                  <p className="mt-2 text-sm text-[#8A8A86]">Curate a look from the latest collection.</p>
+                </div>
+                <button type="button" className="border border-black bg-black px-6 py-4 text-[10px] uppercase tracking-[0.26em] text-white" onClick={() => { setCartOpen(false); openCollection(); }}>
+                  Continue shopping
+                </button>
+              </div>
+            ) : (
+              <div className="flex h-[calc(100%-90px)] flex-col justify-between">
+                <div className="space-y-4 overflow-y-auto pr-1">
+                  {bag.map((item) => (
+                    <div key={`${item.id}-${item.size}`} className="flex gap-4 border-b border-[#D8D8D4] pb-4">
+                      <div className="h-28 w-24 overflow-hidden border border-[#D8D8D4] bg-white">
+                        <img src={productCatalog.find((product) => product.id === item.id)?.gallery[0]} alt={item.name} className="h-full w-full object-cover" />
+                      </div>
+                      <div className="flex w-full flex-col justify-between gap-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium">{item.name}</p>
+                            <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]">Size {item.size}</p>
+                          </div>
+                          <button type="button" className="text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]">Remove</button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 border border-[#D8D8D4] bg-white">
+                            <button type="button" className="flex h-8 w-8 items-center justify-center" onClick={() => setBag((current) => current.filter((bagItem) => !(bagItem.id === item.id && bagItem.size === item.size && bagItem.quantity <= 1) ? true : false))}>
+                              <Minus className="h-3 w-3" />
+                            </button>
+                            <span className="min-w-6 text-center text-xs">{item.quantity}</span>
+                            <button type="button" className="flex h-8 w-8 items-center justify-center" onClick={() => setBag((current) => current.map((bagItem) => bagItem.id === item.id && bagItem.size === item.size ? { ...bagItem, quantity: bagItem.quantity + 1 } : bagItem))}>
+                              <Plus className="h-3 w-3" />
+                            </button>
+                          </div>
+                          <p className="text-sm">{formatPrice(item.price * item.quantity)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t border-[#D8D8D4] pt-4">
+                  <div className="mb-4 flex items-center justify-between text-sm"><span>Subtotal</span><span>{formatPrice(subtotal)}</span></div>
+                  <button type="button" className="w-full border border-black bg-black px-6 py-4 text-[10px] uppercase tracking-[0.24em] text-white" onClick={() => { setCartOpen(false); setCurrentView('checkout'); }}>
+                    Checkout
+                  </button>
+                </div>
+              </div>
+            )}
+          </motion.aside>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function ProductCard({ product, onClick, onQuickAdd }) {
+  const [imageLoaded, setImageLoaded] = useState(false)
+
+  return (
+    <div className="group relative overflow-hidden border border-[#D8D8D4] bg-[#F7F7F5]">
+      <div className="relative overflow-hidden bg-[#F7F7F5]">
+        {!imageLoaded && <div className="absolute inset-0 animate-pulse bg-[#F7F7F5]" />}
+        <button type="button" onClick={onClick} className="block w-full text-left">
+          <img src={product.gallery[0]} alt={product.name} className={`h-[360px] w-full object-cover transition duration-500 group-hover:scale-[1.02] ${imageLoaded ? 'opacity-100' : 'opacity-0'}`} onLoad={() => setImageLoaded(true)} />
+        </button>
+        <div className="absolute inset-x-0 bottom-0 flex translate-y-full items-center justify-center bg-black/40 p-3 text-white opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100 md:group-hover:flex">
+          <button type="button" className="flex items-center gap-2 text-[10px] uppercase tracking-[0.24em]" onClick={(event) => { event.stopPropagation(); onQuickAdd(); }}>
+            Quick add <ArrowRight className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-3 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="nav-label text-[#8A8A86]">{product.category}</p>
+            <button type="button" onClick={onClick} className="mt-1 block text-left text-xl font-medium leading-none hover:text-[#8A8A86]">
+              {product.name}
+            </button>
+          </div>
+          <button type="button" className="flex h-9 w-9 items-center justify-center border border-[#D8D8D4] bg-white" aria-label={`Save ${product.name}`}>
+            <Heart className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-sm">{formatPrice(product.price)}</span>
+          <span className="text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]">{product.color}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AccordionItem({ title, content, isOpen, onToggle }) {
+  return (
+    <div className="border-t border-[#D8D8D4] pt-3">
+      <button type="button" className="flex w-full items-center justify-between py-1 text-left" onClick={onToggle}>
+        <span className="text-sm uppercase tracking-[0.18em] text-black">{title}</span>
+        <span className="flex h-7 w-7 items-center justify-center border border-[#D8D8D4] bg-white">
+          {isOpen ? <Minus className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+        </span>
+      </button>
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease: 'easeOut' }} className="overflow-hidden">
+            <p className="pb-2 pt-3 text-sm leading-relaxed text-[#8A8A86]">{content}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function InputField({ label, type = 'text', value, onChange, required = false, autoComplete }) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]">{label}</span>
+      <input type={type} value={value} onChange={(event) => onChange?.(event.target.value)} required={required} autoComplete={autoComplete} className="w-full border-b border-[#D8D8D4] bg-transparent px-0 py-3 text-sm text-black outline-none placeholder:text-[#8A8A86] focus:border-black" placeholder="" />
+    </label>
+  )
+}
+
+function CmsField({ label, value, onChange, type = 'text', required = false, rows = 4 }) {
+  const fieldClassName = 'w-full border border-[#D8D8D4] bg-[#F7F7F5] px-3 py-3 text-sm text-black outline-none focus:border-black'
+  return (
+    <label className="block">
+      <span className="mb-2 block text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]">{label}</span>
+      {type === 'textarea' ? (
+        <textarea value={value} onChange={(event) => onChange(event.target.value)} required={required} rows={rows} className={`${fieldClassName} resize-y`} />
+      ) : (
+        <input type={type} value={value} onChange={(event) => onChange(event.target.value)} required={required} min={type === 'number' ? 1 : undefined} className={fieldClassName} />
+      )}
+    </label>
+  )
+}
+
+export default App
