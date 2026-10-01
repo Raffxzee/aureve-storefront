@@ -6,6 +6,10 @@ AUREVÉ is a React storefront with a local Express API and SQLite persistence.
 
 Run `npm run dev` to start Vite and the API together. The API listens on port 3001; Vite proxies `/api` requests to it. The SQLite database is created at `data/aureve.sqlite` by default. Set `DATABASE_PATH` to use a different file, or `API_PORT` to change the API port.
 
+## Docker
+
+Copy `.env.example` to `.env` and set a unique `ADMIN_PASSWORD` before starting the production containers. Run `docker compose up --build -d`; the storefront is available at `http://localhost:8081` by default (`FRONTEND_PORT` changes the host port). Nginx proxies `/api` to the backend, and a named Docker volume persists SQLite data across container recreation. Keep `.env` private; it is excluded from Git and the Docker build context.
+
 ## Accounts and orders
 
 The API supports account registration, login, logout, session restore, sandbox checkout, and order history. Passwords are hashed with bcrypt. Sessions use an HTTP-only cookie. The database stores users, sessions, orders, order items, shipping addresses, and payment/shipping statuses.

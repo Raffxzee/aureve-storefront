@@ -1,0 +1,12 @@
+.git
+.gitignore
+node_modules
+dist
+dist-ssr
+coverage
+data
+*.sqlite*
+.env
+.env.*
+!.env.example
+*.log
