@@ -1353,7 +1353,12 @@ function App() {
               {user ? (
                 <div className="space-y-5">
                   <p className="text-sm">Signed in as <strong>{user.email}</strong></p>
-                  {user.role === 'admin' && <button type="button" className="mr-3 border border-[#D8D8D4] bg-white px-5 py-3 text-[10px] uppercase tracking-[0.24em]" onClick={() => { setCurrentView('admin'); setAuthOpen(false); }}>Open CMS</button>}
+                  <div className="flex flex-wrap gap-3">
+                    <button type="button" className="border border-[#D8D8D4] bg-white px-5 py-3 text-[10px] uppercase tracking-[0.24em]" onClick={() => { setCurrentView('orders'); setAuthOpen(false); }}>
+                      Order history
+                    </button>
+                    {user.role === 'admin' && <button type="button" className="border border-[#D8D8D4] bg-white px-5 py-3 text-[10px] uppercase tracking-[0.24em]" onClick={() => { setCurrentView('admin'); setAuthOpen(false); }}>Open CMS</button>}
+                  </div>
                   <button type="button" className="border border-black bg-black px-5 py-3 text-[10px] uppercase tracking-[0.24em] text-white" onClick={handleLogout}>
                     Sign out
                   </button>
