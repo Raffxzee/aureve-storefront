@@ -661,11 +661,15 @@ app.patch('/api/admin/articles/:id', requireAdmin, (request, response) => {
 })
 
 app.get('/api/admin/orders', requireAdmin, (_request, response) => {
+  const getOrderItems = database.prepare(`
+    SELECT product_id AS productId, product_name AS name, unit_price AS unitPrice, size, quantity
+    FROM order_items WHERE order_id = ? ORDER BY id
+  `)
   const orders = database.prepare(`
     SELECT orders.id, orders.order_number AS orderNumber, orders.subtotal, orders.shipping, orders.total,
       orders.currency_code AS currencyCode,
       orders.shipping_method AS shippingMethod, orders.shipping_address AS shippingAddress,
-      orders.payment_status AS paymentStatus, orders.fulfillment_status AS fulfillmentStatus,
+      orders.payment_method AS paymentMethod, orders.payment_status AS paymentStatus, orders.fulfillment_status AS fulfillmentStatus,
       orders.created_at AS createdAt, users.name AS customerName, users.email AS customerEmail,
       (SELECT COUNT(*) FROM order_items WHERE order_items.order_id = orders.id) AS itemCount
     FROM orders LEFT JOIN users ON users.id = orders.user_id ORDER BY orders.created_at DESC
@@ -676,6 +680,7 @@ app.get('/api/admin/orders', requireAdmin, (_request, response) => {
       customerName: order.customerName || shippingAddress.name,
       customerEmail: order.customerEmail || shippingAddress.email,
       shippingAddress,
+      items: getOrderItems.all(order.id),
     }
   })
   response.json({ orders })

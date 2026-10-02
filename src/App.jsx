@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowRight,
@@ -262,6 +262,7 @@ function App() {
   const [adminProducts, setAdminProducts] = useState([])
   const [adminArticles, setAdminArticles] = useState([])
   const [adminOrders, setAdminOrders] = useState([])
+  const [expandedOrderId, setExpandedOrderId] = useState(null)
   const [cmsLoading, setCmsLoading] = useState(false)
   const [cmsSaving, setCmsSaving] = useState(false)
   const [imageUploadBusy, setImageUploadBusy] = useState(false)
@@ -271,6 +272,8 @@ function App() {
   const [editingArticleId, setEditingArticleId] = useState(null)
   const [productDraft, setProductDraft] = useState({ name: '', price: '', category: 'Outerwear', color: '', material: '', audience: 'women', sizes: 'XS, S, M, L', gallery: '', description: '' })
   const [articleDraft, setArticleDraft] = useState({ category: '', title: '', image: '', alt: '', excerpt: '', body: '', status: 'draft' })
+  const productFormRef = useRef(null)
+  const articleFormRef = useRef(null)
   const [contactDetails, setContactDetails] = useState(initialContactDetails)
   const [contactDraft, setContactDraft] = useState(initialContactDetails)
 
@@ -1171,7 +1174,7 @@ function App() {
                           <p className="nav-label text-[#8A8A86]">Catalog</p>
                           <h2 className="font-display text-4xl">Products</h2>
                         </div>
-                        <button type="button" className="border border-black bg-black px-4 py-3 text-[10px] uppercase tracking-[0.2em] text-white" onClick={resetProductDraft}>
+                        <button type="button" className="border border-black bg-black px-4 py-3 text-[10px] uppercase tracking-[0.2em] text-white" onClick={() => { resetProductDraft(); setCmsNotice('Product editor is ready for a new listing.'); productFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>
                           Add product
                         </button>
                       </div>
@@ -1185,7 +1188,7 @@ function App() {
                               <p className="mt-1 text-[10px] uppercase tracking-[0.18em]">{product.isActive ? 'Live' : 'Hidden'}</p>
                             </div>
                             <div className="flex gap-2">
-                              <button type="button" className="border border-[#D8D8D4] bg-white px-3 py-2 text-[10px] uppercase tracking-[0.15em]" onClick={() => editProduct(product)}>Edit</button>
+                              <button type="button" className="border border-[#D8D8D4] bg-white px-3 py-2 text-[10px] uppercase tracking-[0.15em]" onClick={() => { editProduct(product); productFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>Edit</button>
                               <button type="button" className="border border-[#D8D8D4] bg-white px-3 py-2 text-[10px] uppercase tracking-[0.15em]" onClick={() => toggleProductActive(product)}>{product.isActive ? 'Hide' : 'Publish'}</button>
                             </div>
                           </div>
@@ -1193,7 +1196,7 @@ function App() {
                       </div>
                     </section>
 
-                    <form className="space-y-4 border border-[#D8D8D4] bg-white p-5 md:p-6" onSubmit={saveProduct}>
+                    <form ref={productFormRef} className="scroll-mt-24 space-y-4 border border-[#D8D8D4] bg-white p-5 md:p-6" onSubmit={saveProduct}>
                       <div className="flex items-start justify-between gap-4 border-b border-[#D8D8D4] pb-4">
                         <div>
                           <p className="nav-label text-[#8A8A86]">{editingProductId ? 'Edit listing' : 'New listing'}</p>
@@ -1230,20 +1233,20 @@ function App() {
                     <section aria-label="Journal article list">
                       <div className="mb-4 flex items-end justify-between border-b border-[#D8D8D4] pb-3">
                         <div><p className="nav-label text-[#8A8A86]">Editorial</p><h2 className="font-display text-4xl">Journal</h2></div>
-                        <button type="button" className="border border-black bg-black px-4 py-3 text-[10px] uppercase tracking-[0.2em] text-white" onClick={resetArticleDraft}>New article</button>
+                        <button type="button" className="border border-black bg-black px-4 py-3 text-[10px] uppercase tracking-[0.2em] text-white" onClick={() => { resetArticleDraft(); setCmsNotice('Article editor is ready for a new story.'); articleFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>New article</button>
                       </div>
                       <div className="divide-y divide-[#D8D8D4]">
                         {adminArticles.map((article) => (
                           <div key={article.id} className="flex items-center gap-4 py-4">
                             <img src={article.image} alt={article.alt} className="h-20 w-16 object-cover" />
                             <div className="min-w-0 flex-1"><p className="text-sm font-medium">{article.title}</p><p className="mt-1 text-xs text-[#8A8A86]">{article.category} · {article.status}</p></div>
-                            <button type="button" className="border border-[#D8D8D4] bg-white px-3 py-2 text-[10px] uppercase tracking-[0.15em]" onClick={() => editArticle(article)}>Edit</button>
+                            <button type="button" className="border border-[#D8D8D4] bg-white px-3 py-2 text-[10px] uppercase tracking-[0.15em]" onClick={() => { editArticle(article); articleFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>Edit</button>
                           </div>
                         ))}
                       </div>
                     </section>
 
-                    <form className="space-y-4 border border-[#D8D8D4] bg-white p-5 md:p-6" onSubmit={saveArticle}>
+                    <form ref={articleFormRef} className="scroll-mt-24 space-y-4 border border-[#D8D8D4] bg-white p-5 md:p-6" onSubmit={saveArticle}>
                       <div className="border-b border-[#D8D8D4] pb-4"><p className="nav-label text-[#8A8A86]">{editingArticleId ? 'Edit story' : 'New story'}</p><h2 className="font-display text-3xl">Article details</h2></div>
                       <div className="grid gap-4 sm:grid-cols-2">
                         <CmsField label="Category" value={articleDraft.category} onChange={(value) => setArticleValue('category', value)} required />
@@ -1274,13 +1277,58 @@ function App() {
                         <table className="w-full min-w-[760px] border-collapse text-left text-sm">
                           <thead><tr className="border-b border-[#D8D8D4] text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]"><th className="py-3 pr-4">Order</th><th className="py-3 pr-4">Customer</th><th className="py-3 pr-4">Delivery</th><th className="py-3 pr-4">Total</th><th className="py-3">Status</th></tr></thead>
                           <tbody>{adminOrders.map((order) => (
-                            <tr key={order.id} className="border-b border-[#D8D8D4] align-top">
-                              <td className="py-4 pr-4"><p>{order.orderNumber}</p><p className="mt-1 text-xs text-[#8A8A86]">{order.itemCount} line items</p></td>
-                              <td className="py-4 pr-4"><p>{order.customerName}</p><p className="mt-1 text-xs text-[#8A8A86]">{order.customerEmail}</p></td>
-                              <td className="py-4 pr-4"><p className="capitalize">{order.shippingMethod}</p><p className="mt-1 text-xs text-[#8A8A86]">{order.shippingAddress.city}, {order.shippingAddress.country}</p></td>
-                              <td className="py-4 pr-4">{formatPrice(order.total, order.currencyCode || 'IDR')}</td>
-                              <td className="py-4"><select aria-label={`Fulfillment status for ${order.orderNumber}`} value={order.fulfillmentStatus} onChange={(event) => updateOrderStatus(order.id, event.target.value)} className="border border-[#D8D8D4] bg-white px-2 py-2 text-xs"><option value="processing">Processing</option><option value="packed">Packed</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option></select></td>
-                            </tr>
+                            <Fragment key={order.id}>
+                              <tr key={order.id} className="border-b border-[#D8D8D4] align-top">
+                                <td className="py-4 pr-4">
+                                  <p>{order.orderNumber}</p>
+                                  <p className="mt-1 text-xs text-[#8A8A86]">{order.itemCount} line items</p>
+                                  <button type="button" aria-expanded={expandedOrderId === order.id} className="mt-2 text-[10px] uppercase tracking-[0.16em] underline underline-offset-4" onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>
+                                    {expandedOrderId === order.id ? 'Hide details' : 'View details'}
+                                  </button>
+                                </td>
+                                <td className="py-4 pr-4"><p>{order.customerName}</p><p className="mt-1 text-xs text-[#8A8A86]">{order.customerEmail}</p></td>
+                                <td className="py-4 pr-4"><p className="capitalize">{order.shippingMethod}</p><p className="mt-1 text-xs text-[#8A8A86]">{order.shippingAddress.city}, {order.shippingAddress.country}</p></td>
+                                <td className="py-4 pr-4">{formatPrice(order.total, order.currencyCode || 'IDR')}</td>
+                                <td className="py-4"><select aria-label={`Fulfillment status for ${order.orderNumber}`} value={order.fulfillmentStatus} onChange={(event) => updateOrderStatus(order.id, event.target.value)} className="border border-[#D8D8D4] bg-white px-2 py-2 text-xs"><option value="processing">Processing</option><option value="packed">Packed</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option></select></td>
+                              </tr>
+                              {expandedOrderId === order.id && (
+                                <tr key={`${order.id}-details`} className="border-b border-[#D8D8D4]">
+                                  <td colSpan={5} className="p-0">
+                                    <div className="grid gap-6 bg-[#F7F7F5] p-5 md:grid-cols-3 md:p-6">
+                                      <section aria-label="Customer and delivery details">
+                                        <p className="nav-label mb-3 text-[#686864]">Customer & delivery</p>
+                                        <p className="text-sm font-medium">{order.shippingAddress.name}</p>
+                                        <p className="mt-1 text-sm">{order.shippingAddress.email}</p>
+                                        <p className="mt-1 text-sm">{order.shippingAddress.phone}</p>
+                                        <p className="mt-3 text-sm leading-relaxed text-[#686864]">{order.shippingAddress.address}<br />{order.shippingAddress.city}, {order.shippingAddress.postalCode}<br />{order.shippingAddress.country}</p>
+                                        <p className="mt-3 text-xs text-[#686864]">Placed {new Date(order.createdAt).toLocaleString('id-ID')}</p>
+                                      </section>
+                                      <section aria-label="Order items">
+                                        <p className="nav-label mb-3 text-[#686864]">Items</p>
+                                        <div className="divide-y divide-[#D8D8D4]">
+                                          {Array.isArray(order.items) && order.items.length > 0 ? order.items.map((item, index) => (
+                                            <div key={`${item.productId}-${item.size}-${index}`} className="flex items-start justify-between gap-4 py-2 text-sm">
+                                              <div><p>{item.name}</p><p className="mt-1 text-xs text-[#686864]">Size {item.size} · Qty {item.quantity}</p></div>
+                                              <p className="shrink-0">{formatPrice(item.unitPrice * item.quantity, order.currencyCode || 'IDR')}</p>
+                                            </div>
+                                          )) : <p className="py-2 text-sm text-[#686864]">Order items are unavailable. Refresh the CMS and try again.</p>}
+                                        </div>
+                                      </section>
+                                      <section aria-label="Payment and totals">
+                                        <p className="nav-label mb-3 text-[#686864]">Payment & totals</p>
+                                        <div className="space-y-2 text-sm">
+                                          <div className="flex justify-between gap-4"><span className="text-[#686864]">Method</span><span className="capitalize">{order.paymentMethod}</span></div>
+                                          <div className="flex justify-between gap-4"><span className="text-[#686864]">Payment status</span><span>{order.paymentStatus}</span></div>
+                                          <div className="flex justify-between gap-4"><span className="text-[#686864]">Subtotal</span><span>{formatPrice(order.subtotal, order.currencyCode || 'IDR')}</span></div>
+                                          <div className="flex justify-between gap-4"><span className="text-[#686864]">Shipping</span><span>{order.shipping === 0 ? 'Free' : formatPrice(order.shipping, order.currencyCode || 'IDR')}</span></div>
+                                          <div className="flex justify-between gap-4 border-t border-[#D8D8D4] pt-2 font-medium"><span>Total</span><span>{formatPrice(order.total, order.currencyCode || 'IDR')}</span></div>
+                                        </div>
+                                      </section>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
                           ))}</tbody>
                         </table>
                       </div>
@@ -1857,7 +1905,7 @@ function App() {
 
       <AnimatePresence>
         {cartOpen && (
-          <motion.aside initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ duration: 0.32, ease: 'easeOut' }} className="fixed right-0 top-0 z-[130] h-screen w-full max-w-md border-l border-[#D8D8D4] bg-[#F7F7F5] p-6">
+          <motion.aside initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ duration: 0.32, ease: 'easeOut' }} className="fixed right-0 top-0 z-[130] flex h-[100dvh] w-[min(88vw,24rem)] flex-col overflow-hidden border-l border-[#D8D8D4] bg-[#F7F7F5] p-5 sm:p-6 md:w-full">
             <div className="mb-6 flex items-center justify-between border-b border-[#D8D8D4] pb-4">
               <div>
                 <p className="nav-label text-[#8A8A86]">Your bag</p>
