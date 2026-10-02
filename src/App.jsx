@@ -10,8 +10,6 @@ import {
   Plus,
   Search,
   ShoppingBag,
-  SlidersHorizontal,
-  Star,
   User,
   X,
 } from 'lucide-react'
@@ -184,7 +182,12 @@ const initialProductCatalog = [
 ]
 
 const navItems = ['New In', 'Women', 'Men', 'Accessories', 'Journal']
-const filterOptions = ['All', 'Outerwear', 'Tailoring', 'Knitwear', 'Accessories']
+const initialContactDetails = {
+  email: 'clientcare@aureve.example',
+  whatsapp: '+62 000 0000 0000',
+  instagram: 'https://www.instagram.com/aureve.example/',
+  phone: '+62 000 0000 0000',
+}
 const sizeOptions = ['XS', 'S', 'M', 'L', 'XL']
 const initialArticles = [
   { id: 'seed-wool', category: 'Materials', title: 'The quiet character of wool', image: 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=900&q=80', alt: 'Textured wool garments', excerpt: 'A closer look at the natural texture and lasting character of wool.', body: 'The best materials reveal themselves slowly. Wool holds warmth without weight, texture without noise, and a shape that softens with time. We select fibres for how they feel in the hand and how they become part of a daily wardrobe.' },
@@ -211,7 +214,11 @@ async function requestJSON(url, options = {}) {
 }
 
 function App() {
-  const [currentView, setCurrentView] = useState('home')
+  const [currentView, setCurrentViewState] = useState(() => window.location.pathname === '/admin' ? 'admin' : 'home')
+  const setCurrentView = (view) => {
+    const nextView = typeof view === 'function' ? view(currentView) : view
+    setCurrentViewState(nextView)
+  }
   const [collectionMode, setCollectionMode] = useState('new')
   const [productCatalog, setProductCatalog] = useState(() => initialProductCatalog.map((product) => ({ ...product, audience: [2, 3, 4, 5, 6, 12].includes(product.id) ? 'men' : [8, 9, 10, 11].includes(product.id) ? 'unisex' : 'women', isActive: true })))
   const [articles, setArticles] = useState(initialArticles)
@@ -220,11 +227,15 @@ function App() {
   const [selectedSize, setSelectedSize] = useState('M')
   const [bag, setBag] = useState([])
   const [cartOpen, setCartOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [headerSolid, setHeaderSolid] = useState(false)
   const [selectedFilter, setSelectedFilter] = useState('All')
+  const [priceFilter, setPriceFilter] = useState('all')
+  const [sortOrder, setSortOrder] = useState('recommended')
   const [checkoutStep, setCheckoutStep] = useState(0)
   const [error, setError] = useState('')
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
@@ -235,6 +246,9 @@ function App() {
   const [authForm, setAuthForm] = useState({ name: '', email: '', password: '' })
   const [authError, setAuthError] = useState('')
   const [authBusy, setAuthBusy] = useState(false)
+  const [adminLoginForm, setAdminLoginForm] = useState({ email: '', password: '' })
+  const [adminLoginError, setAdminLoginError] = useState('')
+  const [adminLoginBusy, setAdminLoginBusy] = useState(false)
   const [checkoutForm, setCheckoutForm] = useState({ firstName: '', lastName: '', email: '', phone: '', address: '', city: '', postalCode: '', country: 'Indonesia' })
   const [checkoutError, setCheckoutError] = useState('')
   const [checkoutBusy, setCheckoutBusy] = useState(false)
@@ -250,12 +264,15 @@ function App() {
   const [adminOrders, setAdminOrders] = useState([])
   const [cmsLoading, setCmsLoading] = useState(false)
   const [cmsSaving, setCmsSaving] = useState(false)
+  const [imageUploadBusy, setImageUploadBusy] = useState(false)
   const [cmsError, setCmsError] = useState('')
   const [cmsNotice, setCmsNotice] = useState('')
   const [editingProductId, setEditingProductId] = useState(null)
   const [editingArticleId, setEditingArticleId] = useState(null)
   const [productDraft, setProductDraft] = useState({ name: '', price: '', category: 'Outerwear', color: '', material: '', audience: 'women', sizes: 'XS, S, M, L', gallery: '', description: '' })
   const [articleDraft, setArticleDraft] = useState({ category: '', title: '', image: '', alt: '', excerpt: '', body: '', status: 'draft' })
+  const [contactDetails, setContactDetails] = useState(initialContactDetails)
+  const [contactDraft, setContactDraft] = useState(initialContactDetails)
 
   useEffect(() => {
     const handleScroll = () => setHeaderSolid(window.scrollY > 12)
@@ -263,6 +280,17 @@ function App() {
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  useEffect(() => {
+    const handlePopState = () => setCurrentViewState(window.location.pathname === '/admin' ? 'admin' : 'home')
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  useEffect(() => {
+    const canonicalPath = currentView === 'admin' ? '/admin' : '/'
+    if (window.location.pathname !== canonicalPath) window.history.pushState({}, '', canonicalPath)
+  }, [currentView])
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -279,6 +307,10 @@ function App() {
   useEffect(() => {
     requestJSON('/api/products').then(({ products }) => setProductCatalog(products)).catch(() => {})
     requestJSON('/api/journal').then(({ articles: publishedArticles }) => setArticles(publishedArticles)).catch(() => {})
+    requestJSON('/api/settings/contact').then(({ contact }) => {
+      setContactDetails(contact)
+      setContactDraft(contact)
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -327,25 +359,81 @@ function App() {
   }, [currentView, user])
 
   const activeCatalog = collectionMode === 'men'
-    ? productCatalog.filter((product) => product.audience === 'men' || product.audience === 'unisex')
-    : collectionMode === 'accessories'
+    ? productCatalog.filter((product) => product.audience === 'men')
+    : collectionMode === 'women'
+      ? productCatalog.filter((product) => product.audience === 'women')
+      : collectionMode === 'accessories'
       ? productCatalog.filter((product) => product.category === 'Accessories')
       : productCatalog
   const selectedProduct = activeCatalog.find((item) => item.id === selectedProductId) || activeCatalog[0]
 
-  const filteredProducts =
-    selectedFilter === 'All'
-      ? activeCatalog
-      : activeCatalog.filter((product) => product.category === selectedFilter)
-  const activeFilterOptions = collectionMode === 'accessories' ? ['All', 'Accessories'] : filterOptions
+  const activeFilterOptions = ['All', ...new Set(activeCatalog.map((product) => product.category))]
+  const filteredProducts = activeCatalog
+    .filter((product) => selectedFilter === 'All' || product.category === selectedFilter)
+    .filter((product) => {
+      if (priceFilter === 'under-3m') return product.price < 3000000
+      if (priceFilter === '3m-6m') return product.price >= 3000000 && product.price < 6000000
+      if (priceFilter === '6m-9m') return product.price >= 6000000 && product.price <= 9000000
+      if (priceFilter === 'over-9m') return product.price > 9000000
+      return true
+    })
+    .sort((first, second) => {
+      if (sortOrder === 'price-low') return first.price - second.price
+      if (sortOrder === 'price-high') return second.price - first.price
+      if (sortOrder === 'name') return first.name.localeCompare(second.name)
+      return first.id - second.id
+    })
+  const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase()
+  const searchProducts = productCatalog.filter((product) => {
+    const searchableText = [product.name, product.category, product.color, product.material, product.description]
+      .filter(Boolean)
+      .join(' ')
+      .toLocaleLowerCase()
+    return !normalizedSearchQuery || searchableText.includes(normalizedSearchQuery)
+  }).slice(0, normalizedSearchQuery ? 6 : 4)
+  const searchArticles = normalizedSearchQuery
+    ? articles.filter((article) => [article.title, article.category, article.excerpt, article.body]
+      .filter(Boolean)
+      .join(' ')
+      .toLocaleLowerCase()
+      .includes(normalizedSearchQuery))
+      .slice(0, 3)
+    : []
+  const bestSellingProducts = [...productCatalog]
+    .filter((product) => product.unitsSold > 0)
+    .sort((first, second) => second.unitsSold - first.unitsSold || first.id - second.id)
+    .slice(0, 4)
+  const featuredHomeProducts = bestSellingProducts.length ? bestSellingProducts : productCatalog.slice(0, 4)
+  const homeCollections = [
+    { mode: 'women', label: 'Women', detail: 'Soft structure, considered layers', product: productCatalog.find((product) => product.audience === 'women') },
+    { mode: 'men', label: 'Men', detail: 'Modern form, everyday ease', product: productCatalog.find((product) => product.audience === 'men') },
+    { mode: 'accessories', label: 'Accessories', detail: 'The finishing details', product: productCatalog.find((product) => product.category === 'Accessories') },
+  ].filter((collection) => collection.product)
 
   const openCollection = (mode = 'new') => {
     setCollectionMode(mode)
     setSelectedFilter('All')
+    setPriceFilter('all')
+    setSortOrder('recommended')
     setCurrentView('plp')
   }
 
+  const navigateHome = () => {
+    setCurrentView('home')
+    setMobileMenuOpen(false)
+  }
+
+  const openProduct = (product) => {
+    setSelectedProductId(product.id)
+    setSelectedImageIndex(0)
+    setSelectedSize(product.sizes[0] || '')
+    setError('')
+    setCurrentView('pdp')
+  }
+
   const subtotal = bag.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  const bagItemCount = bag.reduce((count, item) => count + item.quantity, 0)
+  const checkoutItemCount = showSuccess ? completedOrder?.itemCount || 0 : bagItemCount
   const shipping = shippingMethod === 'express' ? 400000 : subtotal >= 8000000 ? 0 : 240000
   const total = subtotal + shipping
 
@@ -372,9 +460,31 @@ function App() {
     }
   }
 
+  const handleAdminLogin = async (event) => {
+    event.preventDefault()
+    setAdminLoginError('')
+    setAdminLoginBusy(true)
+    try {
+      const response = await fetch('/api/admin/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(adminLoginForm),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Unable to sign in to the CMS.')
+      setUser(result.user)
+      setAdminLoginForm({ email: '', password: '' })
+    } catch (requestError) {
+      setAdminLoginError(requestError.message)
+    } finally {
+      setAdminLoginBusy(false)
+    }
+  }
+
   const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' })
+    await fetch(user?.role === 'admin' ? '/api/admin/auth/logout' : '/api/auth/logout', { method: 'POST' })
     setUser(null)
+    setAuthOpen(false)
   }
 
   const addProductToBag = (product, size) => {
@@ -413,12 +523,6 @@ function App() {
   }
 
   const handlePlaceOrder = async () => {
-    if (!user) {
-      setAuthMode('login')
-      setAuthOpen(true)
-      setCheckoutError('Sign in or create an account to place your order.')
-      return
-    }
     setCheckoutBusy(true)
     setCheckoutError('')
     try {
@@ -556,6 +660,26 @@ function App() {
     }
   }
 
+  const saveContactDetails = async (event) => {
+    event.preventDefault()
+    setCmsSaving(true)
+    setCmsError('')
+    setCmsNotice('')
+    try {
+      const { contact } = await requestJSON('/api/admin/settings/contact', {
+        method: 'PATCH',
+        body: JSON.stringify(contactDraft),
+      })
+      setContactDetails(contact)
+      setContactDraft(contact)
+      setCmsNotice('Footer contact details saved.')
+    } catch (requestError) {
+      setCmsError(requestError.message)
+    } finally {
+      setCmsSaving(false)
+    }
+  }
+
   const updateOrderStatus = async (orderId, fulfillmentStatus) => {
     setCmsError('')
     try {
@@ -571,6 +695,54 @@ function App() {
 
   const setProductValue = (field, value) => setProductDraft((draft) => ({ ...draft, [field]: value }))
   const setArticleValue = (field, value) => setArticleDraft((draft) => ({ ...draft, [field]: value }))
+
+  const uploadCmsImages = async (files) => {
+    const formData = new FormData()
+    files.forEach((file) => formData.append('images', file))
+    const response = await fetch('/api/admin/uploads', { method: 'POST', body: formData })
+    const result = await response.json()
+    if (!response.ok) throw new Error(result.error || 'Unable to upload image.')
+    return result.images.map((image) => image.url)
+  }
+
+  const handleProductImageChange = async (event) => {
+    const files = Array.from(event.target.files || [])
+    event.target.value = ''
+    if (!files.length) return
+    const existingImages = productDraft.gallery.split(/\r?\n/).map((image) => image.trim()).filter(Boolean)
+    if (existingImages.length + files.length > 5) {
+      setCmsError('Products can have up to 5 images.')
+      return
+    }
+
+    setImageUploadBusy(true)
+    setCmsError('')
+    try {
+      const uploadedImages = await uploadCmsImages(files)
+      setProductDraft((draft) => ({ ...draft, gallery: [...draft.gallery.split(/\r?\n/).map((image) => image.trim()).filter(Boolean), ...uploadedImages].join('\n') }))
+    } catch (requestError) {
+      setCmsError(requestError.message)
+    } finally {
+      setImageUploadBusy(false)
+    }
+  }
+
+  const handleArticleImageChange = async (event) => {
+    const [file] = Array.from(event.target.files || [])
+    event.target.value = ''
+    if (!file) return
+
+    setImageUploadBusy(true)
+    setCmsError('')
+    try {
+      const [image] = await uploadCmsImages([file])
+      setArticleValue('image', image)
+    } catch (requestError) {
+      setCmsError(requestError.message)
+    } finally {
+      setImageUploadBusy(false)
+    }
+  }
 
   const renderView = () => {
     if (currentView === 'orders') {
@@ -685,16 +857,20 @@ function App() {
             )}
             <div className="mb-8 flex items-end justify-between gap-4 border-b border-[#D8D8D4] pb-5">
               <div>
-                <p className="nav-label text-[#8A8A86]">{collectionMode === 'men' ? 'AUREVÉ Menswear' : collectionMode === 'accessories' ? 'AUREVÉ Accessories' : 'Collection'}</p>
-                <h1 className="font-display text-5xl md:text-7xl">{collectionMode === 'men' ? "The Men's Collection" : collectionMode === 'accessories' ? 'Objects of Intention' : 'Autumn / Winter 26'}</h1>
+                <p className="nav-label text-[#8A8A86]">{collectionMode === 'men' ? 'AUREVÉ Menswear' : collectionMode === 'women' ? 'AUREVÉ Womenswear' : collectionMode === 'accessories' ? 'AUREVÉ Accessories' : 'Collection'}</p>
+                <h1 className="font-display text-5xl md:text-7xl">{collectionMode === 'men' ? "The Men's Collection" : collectionMode === 'women' ? "The Women's Collection" : collectionMode === 'accessories' ? 'Objects of Intention' : 'Autumn / Winter 26'}</h1>
               </div>
               <div className="hidden items-center gap-3 md:flex">
                 <button className="nav-button border border-[#D8D8D4] px-4 py-3 text-[11px] uppercase tracking-[0.28em]" onClick={() => setFiltersOpen(true)}>
                   Filters
                 </button>
-                <button className="nav-button border border-[#D8D8D4] px-4 py-3 text-[11px] uppercase tracking-[0.28em]">
-                  Sort: Recommended
-                </button>
+                <label className="sr-only" htmlFor="desktop-sort">Sort products</label>
+                <select id="desktop-sort" value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} className="border border-[#D8D8D4] bg-white px-4 py-3 text-[11px] uppercase tracking-[0.18em] focus-ring">
+                  <option value="recommended">Sort: Recommended</option>
+                  <option value="price-low">Price: Low to high</option>
+                  <option value="price-high">Price: High to low</option>
+                  <option value="name">Name: A to Z</option>
+                </select>
               </div>
             </div>
             <div className="mb-8 flex gap-3 overflow-x-auto pb-2 md:hidden">
@@ -711,22 +887,50 @@ function App() {
                 </button>
               ))}
             </div>
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <div className="mb-6 grid grid-cols-2 gap-3 md:hidden">
+              <label className="block">
+                <span className="nav-label mb-2 block text-[#686864]">Price</span>
+                <select value={priceFilter} onChange={(event) => setPriceFilter(event.target.value)} className="w-full border border-[#D8D8D4] bg-white px-3 py-3 text-xs focus-ring">
+                  <option value="all">All prices</option>
+                  <option value="under-3m">Under Rp3.000.000</option>
+                  <option value="3m-6m">Rp3.000.000–Rp5.999.999</option>
+                  <option value="6m-9m">Rp6.000.000–Rp9.000.000</option>
+                  <option value="over-9m">Over Rp9.000.000</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="nav-label mb-2 block text-[#686864]">Sort</span>
+                <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} className="w-full border border-[#D8D8D4] bg-white px-3 py-3 text-xs focus-ring">
+                  <option value="recommended">Recommended</option>
+                  <option value="price-low">Price: Low to high</option>
+                  <option value="price-high">Price: High to low</option>
+                  <option value="name">Name: A to Z</option>
+                </select>
+              </label>
+            </div>
+            <p className="mb-3 text-xs text-[#686864]" aria-live="polite">{filteredProducts.length} {filteredProducts.length === 1 ? 'piece' : 'pieces'}</p>
+            {filteredProducts.length > 0 ? (
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
               {filteredProducts.map((product) => (
                 <ProductCard
                   key={product.id}
                   product={product}
-                  onClick={() => {
-                    setSelectedProductId(product.id)
-                    setCurrentView('pdp')
-                  }}
+                  onClick={() => openProduct(product)}
                   onQuickAdd={() => {
                     addProductToBag(product, product.sizes[0] || 'One Size')
                     setCartOpen(true)
                   }}
                 />
               ))}
-            </div>
+              </div>
+            ) : (
+              <div className="border-y border-[#D8D8D4] py-16 text-center">
+                <p className="font-display text-3xl">No pieces match these filters.</p>
+                <button type="button" className="mt-4 text-xs uppercase tracking-[0.18em] underline underline-offset-4" onClick={() => { setSelectedFilter('All'); setPriceFilter('all'); }}>
+                  Clear filters
+                </button>
+              </div>
+            )}
           </section>
         </motion.div>
       )
@@ -772,17 +976,22 @@ function App() {
                     <h1 className="font-display text-5xl leading-none">{selectedProduct.name}</h1>
                     <div className="flex items-center justify-between">
                       <p className="text-xl">{formatPrice(selectedProduct.price)}</p>
-                      <div className="flex items-center gap-1 text-[10px] uppercase tracking-[0.22em] text-[#8A8A86]">
-                        <Star className="h-3 w-3 fill-black text-black" />
-                        4.9 / 128
-                      </div>
+                      <span className="text-[10px] uppercase tracking-[0.16em] text-[#686864]">Reviews not available</span>
                     </div>
+                    <dl className="grid grid-cols-2 gap-4 border-y border-[#D8D8D4] py-4 text-sm">
+                      <div><dt className="text-xs text-[#686864]">Color</dt><dd className="mt-1">{selectedProduct.color}</dd></div>
+                      <div><dt className="text-xs text-[#686864]">Material</dt><dd className="mt-1">{selectedProduct.material}</dd></div>
+                    </dl>
+                    {selectedProduct.description && <p className="text-sm leading-relaxed text-[#30302E]">{selectedProduct.description}</p>}
                   </div>
 
                   <div className="space-y-4">
-                    <p className="nav-label text-[#8A8A86]">Select size</p>
-                    <div className="grid grid-cols-4 gap-2">
-                      {sizeOptions.map((size) => {
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="nav-label text-[#686864]">Select size</p>
+                      <span className="text-xs text-[#686864]">{selectedProduct.sizes.length} available</span>
+                    </div>
+                    <div className={`grid gap-2 ${selectedProduct.sizes.includes('One Size') ? 'grid-cols-1' : 'grid-cols-4'}`}>
+                      {(selectedProduct.sizes.includes('One Size') ? selectedProduct.sizes : sizeOptions).map((size) => {
                         const isDisabled = !selectedProduct.sizes.includes(size)
                         const active = selectedSize === size
                         return (
@@ -820,9 +1029,11 @@ function App() {
 
                   <div className="space-y-3 border-t border-[#D8D8D4] pt-4">
                     {[
-                      { key: 'composition', label: 'Composition', content: 'Italian wool blend with satin lining. Designed for a softly structured silhouette.' },
-                      { key: 'care', label: 'Care', content: 'Dry clean only. Spot clean immediately if exposure to moisture occurs.' },
-                      { key: 'shipping', label: 'Shipping', content: 'Complimentary standard shipping on orders above Rp8.000.000.' },
+                      { key: 'size', label: 'Size & fit', content: `Available sizes: ${selectedProduct.sizes.join(', ')}. Detailed garment measurements and fit notes are not available for this item yet.` },
+                      { key: 'composition', label: 'Composition', content: selectedProduct.material },
+                      { key: 'care', label: 'Care', content: 'Care instructions are not available for this item yet.' },
+                      { key: 'shipping', label: 'Shipping', content: 'Demo estimate: standard delivery takes 3–5 business days; express takes 1–2 business days. Standard shipping is complimentary on orders above Rp8.000.000. No live carrier is connected.' },
+                      { key: 'returns', label: 'Returns', content: 'A returns policy has not been configured for this demo store.' },
                     ].map((item) => (
                       <AccordionItem
                         key={item.key}
@@ -901,14 +1112,22 @@ function App() {
     if (currentView === 'admin') {
       if (user?.role !== 'admin') {
         return (
-          <section className="mx-auto max-w-2xl px-4 pb-20 pt-36 text-center">
-            <p className="nav-label text-[#8A8A86]">Restricted area</p>
-            <h1 className="mt-3 font-display text-5xl">Admin access required</h1>
-            <p className="mt-4 text-sm text-[#8A8A86]">Sign in with an administrator account to manage AUREVÉ content.</p>
-            <button type="button" className="mt-6 border border-black bg-black px-6 py-4 text-[10px] uppercase tracking-[0.24em] text-white" onClick={() => { setAuthMode('login'); setAuthOpen(true); }}>
-              Sign in
-            </button>
-          </section>
+          <motion.section key="admin-login" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="mx-auto max-w-xl px-4 pb-24 pt-36">
+            <div className="border border-[#D8D8D4] bg-white p-6 md:p-9">
+              <p className="nav-label text-[#686864]">Restricted area</p>
+              <h1 className="mt-3 font-display text-5xl">CMS sign in</h1>
+              <p className="mt-3 text-sm leading-relaxed text-[#686864]">Administrator access is separate from customer accounts.</p>
+              <form className="mt-8 space-y-5" onSubmit={handleAdminLogin}>
+                <InputField label="Admin email" type="email" value={adminLoginForm.email} onChange={(value) => setAdminLoginForm((form) => ({ ...form, email: value }))} required autoComplete="username" />
+                <InputField label="Admin password" type="password" value={adminLoginForm.password} onChange={(value) => setAdminLoginForm((form) => ({ ...form, password: value }))} required autoComplete="current-password" />
+                {adminLoginError && <p role="alert" className="text-sm text-[#B3261E]">{adminLoginError}</p>}
+                <button type="submit" disabled={adminLoginBusy} className="w-full border border-black bg-black px-5 py-4 text-[10px] uppercase tracking-[0.22em] text-white disabled:opacity-50">
+                  {adminLoginBusy ? 'Signing in' : 'Sign in to CMS'}
+                </button>
+              </form>
+              <button type="button" className="mt-5 text-xs uppercase tracking-[0.18em] text-[#686864] underline underline-offset-4" onClick={navigateHome}>Return to storefront</button>
+            </div>
+          </motion.section>
         )
       }
 
@@ -930,6 +1149,7 @@ function App() {
                 { id: 'products', label: `Products (${adminProducts.length})` },
                 { id: 'articles', label: `Journal (${adminArticles.length})` },
                 { id: 'orders', label: `Orders (${adminOrders.length})` },
+                { id: 'contact', label: 'Contact' },
               ].map((tab) => (
                 <button key={tab.id} type="button" role="tab" aria-selected={adminTab === tab.id} className={`whitespace-nowrap border-b-2 px-5 py-4 text-[10px] uppercase tracking-[0.22em] ${adminTab === tab.id ? 'border-black text-black' : 'border-transparent text-[#8A8A86]'}`} onClick={() => { setAdminTab(tab.id); setCmsError(''); setCmsNotice(''); }}>
                   {tab.label}
@@ -990,9 +1210,17 @@ function App() {
                         <label className="block"><span className="mb-2 block text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]">Audience</span><select value={productDraft.audience} onChange={(event) => setProductValue('audience', event.target.value)} className="w-full border-b border-[#D8D8D4] bg-transparent py-3 text-sm"><option value="women">Women</option><option value="men">Men</option><option value="unisex">Unisex</option></select></label>
                         <CmsField label="Sizes (comma separated)" value={productDraft.sizes} onChange={(value) => setProductValue('sizes', value)} required />
                       </div>
-                      <CmsField label="Image URLs (one per line)" type="textarea" rows={3} value={productDraft.gallery} onChange={(value) => setProductValue('gallery', value)} required />
+                      <CmsImagePicker
+                        label="Product images"
+                        images={productDraft.gallery.split(/\r?\n/).map((image) => image.trim()).filter(Boolean)}
+                        onFilesSelected={handleProductImageChange}
+                        onRemove={(index) => setProductValue('gallery', productDraft.gallery.split(/\r?\n/).filter((_image, imageIndex) => imageIndex !== index).join('\n'))}
+                        busy={imageUploadBusy}
+                        multiple
+                        required={!productDraft.gallery.trim()}
+                      />
                       <CmsField label="Description" type="textarea" rows={3} value={productDraft.description} onChange={(value) => setProductValue('description', value)} />
-                      <button type="submit" disabled={cmsSaving} className="w-full border border-black bg-black px-5 py-4 text-[10px] uppercase tracking-[0.22em] text-white disabled:opacity-50">{cmsSaving ? 'Saving' : editingProductId ? 'Save product' : 'Create product'}</button>
+                      <button type="submit" disabled={cmsSaving || imageUploadBusy} className="w-full border border-black bg-black px-5 py-4 text-[10px] uppercase tracking-[0.22em] text-white disabled:opacity-50">{imageUploadBusy ? 'Uploading image' : cmsSaving ? 'Saving' : editingProductId ? 'Save product' : 'Create product'}</button>
                     </form>
                   </div>
                 )}
@@ -1022,11 +1250,18 @@ function App() {
                         <label className="block"><span className="mb-2 block text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]">Status</span><select value={articleDraft.status} onChange={(event) => setArticleValue('status', event.target.value)} className="w-full border-b border-[#D8D8D4] bg-transparent py-3 text-sm"><option value="draft">Draft</option><option value="published">Published</option></select></label>
                       </div>
                       <CmsField label="Title" value={articleDraft.title} onChange={(value) => setArticleValue('title', value)} required />
-                      <CmsField label="Cover image URL" value={articleDraft.image} onChange={(value) => setArticleValue('image', value)} required />
+                      <CmsImagePicker
+                        label="Article cover image"
+                        images={articleDraft.image ? [articleDraft.image] : []}
+                        onFilesSelected={handleArticleImageChange}
+                        onRemove={() => setArticleValue('image', '')}
+                        busy={imageUploadBusy}
+                        required={!articleDraft.image}
+                      />
                       <CmsField label="Image alt text" value={articleDraft.alt} onChange={(value) => setArticleValue('alt', value)} required />
                       <CmsField label="Excerpt" type="textarea" rows={2} value={articleDraft.excerpt} onChange={(value) => setArticleValue('excerpt', value)} required />
                       <CmsField label="Article body" type="textarea" rows={8} value={articleDraft.body} onChange={(value) => setArticleValue('body', value)} required />
-                      <button type="submit" disabled={cmsSaving} className="w-full border border-black bg-black px-5 py-4 text-[10px] uppercase tracking-[0.22em] text-white disabled:opacity-50">{cmsSaving ? 'Saving' : editingArticleId ? 'Save article' : 'Save article'}</button>
+                      <button type="submit" disabled={cmsSaving || imageUploadBusy} className="w-full border border-black bg-black px-5 py-4 text-[10px] uppercase tracking-[0.22em] text-white disabled:opacity-50">{imageUploadBusy ? 'Uploading image' : cmsSaving ? 'Saving' : 'Save article'}</button>
                     </form>
                   </div>
                 )}
@@ -1050,6 +1285,27 @@ function App() {
                         </table>
                       </div>
                     )}
+                  </section>
+                )}
+
+                {adminTab === 'contact' && (
+                  <section className="max-w-3xl" aria-label="Store contact settings">
+                    <form className="space-y-5 border border-[#D8D8D4] bg-white p-5 md:p-7" onSubmit={saveContactDetails}>
+                      <div className="border-b border-[#D8D8D4] pb-4">
+                        <p className="nav-label text-[#686864]">Storefront footer</p>
+                        <h2 className="font-display text-4xl">Contact details</h2>
+                        <p className="mt-2 text-sm text-[#686864]">These demo values appear in the storefront footer. Replace them with real channels before launch.</p>
+                      </div>
+                      <div className="grid gap-5 sm:grid-cols-2">
+                        <CmsField label="Customer care email" type="email" value={contactDraft.email} onChange={(value) => setContactDraft((draft) => ({ ...draft, email: value }))} required />
+                        <CmsField label="WhatsApp number (include country code)" value={contactDraft.whatsapp} onChange={(value) => setContactDraft((draft) => ({ ...draft, whatsapp: value }))} required />
+                        <CmsField label="Instagram profile URL" type="url" value={contactDraft.instagram} onChange={(value) => setContactDraft((draft) => ({ ...draft, instagram: value }))} required />
+                        <CmsField label="Phone number (include country code)" type="tel" value={contactDraft.phone} onChange={(value) => setContactDraft((draft) => ({ ...draft, phone: value }))} required />
+                      </div>
+                      <button type="submit" disabled={cmsSaving} className="w-full border border-black bg-black px-5 py-4 text-[10px] uppercase tracking-[0.22em] text-white disabled:opacity-50">
+                        {cmsSaving ? 'Saving' : 'Save contact details'}
+                      </button>
+                    </form>
                   </section>
                 )}
               </>
@@ -1104,8 +1360,9 @@ function App() {
                       {checkoutStep === 0 && (
                         <div className="space-y-6">
                           <div>
-                            <p className="nav-label text-[#8A8A86]">Information</p>
+                            <p className="nav-label text-[#686864]">{user ? 'Your account' : 'Guest checkout'}</p>
                             <h2 className="font-display text-4xl">Contact details</h2>
+                            {!user && <p className="mt-2 text-sm text-[#686864]">No account is needed. We’ll use these details for your order and delivery updates.</p>}
                           </div>
                           <div className="grid gap-5 md:grid-cols-2">
                             <InputField label="First name" value={checkoutForm.firstName} onChange={(value) => setCheckoutForm((form) => ({ ...form, firstName: value }))} required />
@@ -1178,7 +1435,7 @@ function App() {
                 <div className="border border-[#D8D8D4] bg-[#F7F7F5] p-6 md:p-8">
                   <div className="mb-6 flex items-center justify-between border-b border-[#D8D8D4] pb-4">
                     <p className="nav-label text-[#8A8A86]">Order summary</p>
-                    <span className="text-sm text-black">{showSuccess ? completedOrder?.itemCount || 0 : bag.length} items</span>
+                    <span className="text-sm text-black">{checkoutItemCount} {checkoutItemCount === 1 ? 'item' : 'items'}</span>
                   </div>
                   <div className="space-y-4">
                     {bag.map((item) => (
@@ -1221,12 +1478,12 @@ function App() {
             <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.15 }} className="max-w-xl">
               <p className="nav-label mb-4 text-white/70">Autumn / Winter 26</p>
               <h1 className="font-display text-6xl leading-[0.9] md:text-[7rem]">Quiet luxury in motion.</h1>
-              <div className="mt-6 flex items-center gap-4">
-                <button type="button" className="inline-flex items-center gap-3 border border-white bg-white px-6 py-4 text-[11px] uppercase tracking-[0.26em] text-black transition-colors hover:bg-[#F7F7F5] focus-ring" onClick={() => openCollection()}>
-                  Shop new in <ArrowRight className="h-4 w-4" />
+              <div className="mt-6 flex flex-wrap items-center gap-3">
+                <button type="button" className="inline-flex items-center gap-3 border border-white bg-white px-6 py-4 text-[11px] uppercase tracking-[0.26em] text-black transition-colors hover:bg-[#F7F7F5] focus-ring" onClick={() => openCollection('women')}>
+                  Explore women <ArrowRight className="h-4 w-4" />
                 </button>
-                <button type="button" className="border border-white/70 bg-transparent px-6 py-4 text-[11px] uppercase tracking-[0.26em] text-white focus-ring" onClick={() => setCurrentView('pdp')}>
-                  Explore lookbook
+                <button type="button" className="border border-white/70 bg-transparent px-6 py-4 text-[11px] uppercase tracking-[0.26em] text-white focus-ring" onClick={() => openCollection('men')}>
+                  Explore men
                 </button>
               </div>
             </motion.div>
@@ -1236,27 +1493,45 @@ function App() {
         <section className="mx-auto max-w-[1400px] px-4 py-20 md:px-8">
           <div className="mb-8 flex items-end justify-between gap-4">
             <div>
-              <p className="nav-label text-[#8A8A86]">New in</p>
-              <h2 className="font-display text-5xl md:text-6xl">Essential pieces</h2>
+              <p className="nav-label text-[#686864]">{bestSellingProducts.length ? 'Most purchased' : 'A considered selection'}</p>
+              <h2 className="font-display text-5xl md:text-6xl">{bestSellingProducts.length ? 'Best sellers' : 'The AUREVÉ edit'}</h2>
             </div>
             <button type="button" className="hidden border border-[#D8D8D4] px-5 py-3 text-[10px] uppercase tracking-[0.24em] md:inline-flex" onClick={() => openCollection()}>
-              View all
+              Shop collection
             </button>
           </div>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            {productCatalog.slice(0, 4).map((product) => (
+            {featuredHomeProducts.map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}
-                onClick={() => {
-                  setSelectedProductId(product.id)
-                  setCurrentView('pdp')
-                }}
+                onClick={() => openProduct(product)}
                 onQuickAdd={() => {
                   addProductToBag(product, product.sizes[0] || 'One Size')
                   setCartOpen(true)
                 }}
               />
+            ))}
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-[1400px] px-4 pb-20 md:px-8">
+          <div className="mb-8 max-w-xl">
+            <p className="nav-label text-[#686864]">Explore AUREVÉ</p>
+            <h2 className="mt-3 font-display text-5xl md:text-6xl">Find your point of view.</h2>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {homeCollections.map((collection) => (
+              <button key={collection.mode} type="button" className="group relative aspect-[4/5] overflow-hidden bg-[#E9E7E2] text-left text-white" onClick={() => openCollection(collection.mode)}>
+                <img src={collection.product.gallery[0]} alt={`${collection.label} collection`} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                <span className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/5 to-transparent" />
+                <span className="absolute inset-x-0 bottom-0 p-5 md:p-7">
+                  <span className="nav-label text-white/80">Collection</span>
+                  <span className="mt-2 block font-display text-4xl md:text-5xl">{collection.label}</span>
+                  <span className="mt-2 block text-sm text-white/85">{collection.detail}</span>
+                  <span className="mt-4 inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.2em]">Discover <ArrowRight className="h-3 w-3" /></span>
+                </span>
+              </button>
             ))}
           </div>
         </section>
@@ -1275,36 +1550,49 @@ function App() {
     )
   }
 
+  const isHeaderSolid = headerSolid || currentView !== 'home'
+  const whatsappLink = `https://wa.me/${contactDetails.whatsapp.replace(/\D/g, '')}`
+  const phoneLink = `tel:${contactDetails.phone.replace(/[^\d+]/g, '')}`
+
   return (
     <div className="min-h-screen bg-[#F7F7F5] text-black">
-      <header className={`fixed inset-x-0 top-0 z-50 border-b border-transparent transition-all duration-300 ${headerSolid ? 'border-[#D8D8D4] bg-white/95 backdrop-blur-sm' : 'bg-transparent'}`}>
-        <div className="mx-auto flex h-20 max-w-[1440px] items-center justify-between px-4 md:px-8">
-          <div className="flex items-center gap-6">
-            <button type="button" className="flex h-10 w-10 items-center justify-center border border-black/0 md:hidden" onClick={() => setMobileMenuOpen(true)} aria-label="Open mobile navigation">
-              <Menu className="h-5 w-5" />
-            </button>
-            <button type="button" className="hidden items-center gap-2 md:flex" onClick={() => setCurrentView('home')}>
-              <span className="font-display text-4xl leading-none">AUREVÉ</span>
-            </button>
-            <nav className="hidden items-center gap-8 md:flex">
-                {[...navItems, ...(user?.role === 'admin' ? ['CMS'] : [])].map((item) => (
-                  <button key={item} type="button" className="nav-label text-black hover:text-[#8A8A86]" onClick={() => { if (item === 'CMS') setCurrentView('admin'); else if (item === 'Journal') setCurrentView('journal'); else if (item === 'New In' || item === 'Men' || item === 'Accessories') openCollection(item === 'Men' ? 'men' : item === 'Accessories' ? 'accessories' : 'new'); else setCurrentView('home'); }}>
-                  {item}
-                </button>
-              ))}
-            </nav>
-          </div>
+      <header className={`fixed inset-x-0 top-0 z-50 border-b border-transparent transition-all duration-300 ${isHeaderSolid ? 'border-[#D8D8D4] bg-white/95 text-black shadow-[0_10px_30px_rgba(0,0,0,0.04)] backdrop-blur-sm' : 'bg-transparent text-white'}`}>
+        <div className="mx-auto flex h-20 max-w-[1440px] items-center gap-4 px-4 md:px-8">
+          <button type="button" className="flex h-10 w-10 items-center justify-center border border-transparent md:hidden" onClick={() => setMobileMenuOpen(true)} aria-label="Open mobile navigation">
+            <Menu className="h-5 w-5" />
+          </button>
 
-          <div className="flex items-center gap-3">
-            <button type="button" className="flex h-10 w-10 items-center justify-center border border-[#D8D8D4] bg-transparent text-black focus-ring" aria-label="Search">
+          <button type="button" className="font-display text-3xl leading-none md:hidden" onClick={navigateHome} aria-label="AUREVÉ home">
+            AUREVÉ
+          </button>
+
+          <button type="button" className="hidden items-center gap-2 md:flex" onClick={navigateHome} aria-label="AUREVÉ home">
+            <span className="font-display text-4xl leading-none">AUREVÉ</span>
+          </button>
+
+          <nav className="ml-auto hidden items-center justify-end gap-8 md:flex">
+            {navItems.map((item) => (
+              <button
+                key={item}
+                type="button"
+                className={`text-[12px] font-semibold uppercase tracking-[0.2em] transition-colors ${isHeaderSolid ? 'text-black hover:text-[#686864]' : 'text-white hover:text-white/80'}`}
+                onClick={() => { if (item === 'Journal') setCurrentView('journal'); else if (item === 'New In' || item === 'Women' || item === 'Men' || item === 'Accessories') openCollection(item === 'Men' ? 'men' : item === 'Women' ? 'women' : item === 'Accessories' ? 'accessories' : 'new'); else setCurrentView('home'); }}
+              >
+                {item}
+              </button>
+            ))}
+          </nav>
+
+          <div className="ml-1 flex items-center gap-3">
+            <button type="button" className={`flex h-10 w-10 items-center justify-center border ${isHeaderSolid ? 'border-[#D8D8D4] bg-transparent text-black' : 'border-white/40 bg-transparent text-white'} focus-ring`} aria-label="Search" onClick={() => { setSearchQuery(''); setSearchOpen(true); }}>
               <Search className="h-4 w-4" />
             </button>
-            <button type="button" className="hidden h-10 w-10 items-center justify-center border border-[#D8D8D4] bg-transparent text-black md:flex focus-ring" aria-label={user ? `Account for ${user.name}` : 'Account'} onClick={() => { setAuthError(''); setAuthOpen(true); }}>
+            <button type="button" className={`hidden h-10 w-10 items-center justify-center border md:flex ${isHeaderSolid ? 'border-[#D8D8D4] bg-transparent text-black' : 'border-white/40 bg-transparent text-white'} focus-ring`} aria-label={user ? `Account for ${user.name}` : 'Account'} onClick={() => { setAuthError(''); setAuthOpen(true); }}>
               <User className="h-4 w-4" />
             </button>
-            <button type="button" className="relative flex h-10 w-10 items-center justify-center border border-[#D8D8D4] bg-transparent text-black focus-ring" aria-label="Shopping bag" onClick={() => setCartOpen(true)}>
+            <button type="button" className={`relative flex h-10 w-10 items-center justify-center border ${isHeaderSolid ? 'border-[#D8D8D4] bg-transparent text-black' : 'border-white/40 bg-transparent text-white'} focus-ring`} aria-label="Shopping bag" onClick={() => setCartOpen(true)}>
               <ShoppingBag className="h-4 w-4" />
-              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center bg-black px-1 text-[9px] text-white">{bag.length}</span>
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center bg-black px-1 text-[9px] text-white">{bagItemCount}</span>
             </button>
           </div>
         </div>
@@ -1312,19 +1600,146 @@ function App() {
 
       <main>{renderView()}</main>
 
+      <footer className="border-t border-[#D8D8D4] bg-white">
+        <div className="mx-auto grid max-w-[1440px] gap-10 px-4 py-12 md:grid-cols-[1fr_0.7fr_1fr] md:px-8 md:py-16">
+          <div>
+            <p className="nav-label text-[#686864]">AUREVÉ</p>
+            <p className="mt-3 max-w-sm font-display text-3xl leading-tight">Considered pieces for modern living.</p>
+          </div>
+          <nav aria-label="Footer navigation">
+            <p className="nav-label mb-4 text-[#686864]">Explore</p>
+            <div className="flex flex-col items-start gap-3 text-sm">
+              <button type="button" className="hover:text-[#686864]" onClick={() => openCollection()}>New In</button>
+              <button type="button" className="hover:text-[#686864]" onClick={() => openCollection('women')}>Women</button>
+              <button type="button" className="hover:text-[#686864]" onClick={() => setCurrentView('journal')}>Journal</button>
+              <button type="button" className="hover:text-[#686864]" onClick={() => openCollection('accessories')}>Accessories</button>
+            </div>
+          </nav>
+          <div>
+            <p className="nav-label mb-4 text-[#686864]">Contact</p>
+            <div className="grid gap-3 text-sm sm:grid-cols-2">
+              <a className="underline decoration-[#D8D8D4] underline-offset-4 hover:text-[#686864]" href={`mailto:${contactDetails.email}`}>Email · {contactDetails.email}</a>
+              <a className="underline decoration-[#D8D8D4] underline-offset-4 hover:text-[#686864]" href={whatsappLink} target="_blank" rel="noreferrer">WhatsApp · {contactDetails.whatsapp}</a>
+              <a className="underline decoration-[#D8D8D4] underline-offset-4 hover:text-[#686864]" href={contactDetails.instagram} target="_blank" rel="noreferrer">Instagram</a>
+              <a className="underline decoration-[#D8D8D4] underline-offset-4 hover:text-[#686864]" href={phoneLink}>Phone · {contactDetails.phone}</a>
+            </div>
+            <p className="mt-4 text-[10px] uppercase tracking-[0.16em] text-[#8A8A86]">Demo contact details · update in CMS before launch</p>
+          </div>
+        </div>
+        <div className="border-t border-[#D8D8D4]">
+          <div className="mx-auto flex max-w-[1440px] flex-col items-center justify-between gap-4 px-4 py-5 text-xs text-[#686864] sm:flex-row md:px-8">
+            <span>Indonesia · IDR</span>
+            <button type="button" className="font-display text-2xl text-black" onClick={navigateHome} aria-label="AUREVÉ home">AUREVÉ</button>
+            <span>© AUREVÉ 2026</span>
+          </div>
+        </div>
+      </footer>
+
+      <AnimatePresence>
+        {searchOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[140] bg-black/40 px-4 py-6 backdrop-blur-[2px]"
+            onMouseDown={(event) => { if (event.target === event.currentTarget) setSearchOpen(false); }}
+          >
+            <motion.section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="search-title"
+              initial={{ opacity: 0, y: -16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -16 }}
+              onKeyDown={(event) => { if (event.key === 'Escape') setSearchOpen(false); }}
+              className="mx-auto mt-10 max-h-[calc(100vh-5rem)] w-full max-w-3xl overflow-hidden border border-[#D8D8D4] bg-[#F7F7F5]"
+            >
+              <div className="flex items-center gap-4 border-b border-[#D8D8D4] px-5 py-4 md:px-7">
+                <Search className="h-5 w-5 shrink-0 text-[#686864]" />
+                <label id="search-title" htmlFor="store-search" className="sr-only">Search products and journal</label>
+                <input
+                  id="store-search"
+                  type="search"
+                  autoFocus
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search products, materials, journal..."
+                  className="min-w-0 flex-1 bg-transparent py-2 text-base text-black outline-none placeholder:text-[#8A8A86] md:text-lg"
+                />
+                <button type="button" className="flex h-9 w-9 shrink-0 items-center justify-center border border-[#D8D8D4] bg-white" aria-label="Close search" onClick={() => setSearchOpen(false)}>
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="max-h-[calc(100vh-11rem)] space-y-6 overflow-y-auto p-5 md:p-7">
+                {searchProducts.length > 0 && (
+                  <section aria-label="Product search results">
+                    <p className="nav-label mb-3 text-[#686864]">Products</p>
+                    <div className="divide-y divide-[#D8D8D4]">
+                      {searchProducts.map((product) => (
+                        <button
+                          key={product.id}
+                          type="button"
+                          className="flex w-full items-center gap-4 py-3 text-left hover:bg-white"
+                          onClick={() => { openProduct(product); setSearchOpen(false); }}
+                        >
+                          <img src={product.gallery[0]} alt="" className="h-16 w-12 shrink-0 object-cover" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium">{product.name}</span>
+                            <span className="mt-1 block text-xs text-[#686864]">{product.category} · {product.color}</span>
+                          </span>
+                          <span className="shrink-0 text-xs">{formatPrice(product.price)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {searchArticles.length > 0 && (
+                  <section aria-label="Journal search results">
+                    <p className="nav-label mb-3 text-[#686864]">Journal</p>
+                    <div className="divide-y divide-[#D8D8D4]">
+                      {searchArticles.map((article) => (
+                        <button
+                          key={article.id}
+                          type="button"
+                          className="flex w-full items-center gap-4 py-3 text-left hover:bg-white"
+                          onClick={() => { setSelectedArticle(article); setCurrentView('article'); setSearchOpen(false); }}
+                        >
+                          <img src={article.image} alt="" className="h-16 w-12 shrink-0 object-cover" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium">{article.title}</span>
+                            <span className="mt-1 block text-xs text-[#686864]">{article.category}</span>
+                          </span>
+                          <ArrowRight className="h-4 w-4 shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {normalizedSearchQuery && searchProducts.length === 0 && searchArticles.length === 0 && (
+                  <p role="status" className="py-8 text-center text-sm text-[#686864]">No results found for “{searchQuery.trim()}”.</p>
+                )}
+              </div>
+            </motion.section>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-[#F7F7F5] md:hidden">
             <div className="flex items-center justify-between border-b border-[#D8D8D4] px-4 py-5">
-              <span className="font-display text-3xl">AUREVÉ</span>
+              <button type="button" className="font-display text-3xl" onClick={navigateHome} aria-label="AUREVÉ home">AUREVÉ</button>
               <button type="button" className="flex h-10 w-10 items-center justify-center border border-[#D8D8D4]" onClick={() => setMobileMenuOpen(false)}>
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="flex h-[calc(100%-80px)] flex-col justify-between p-6">
               <div className="space-y-5">
-                {[...navItems, ...(user?.role === 'admin' ? ['CMS'] : [])].map((item) => (
-                  <button key={item} type="button" className="block w-full border-b border-[#D8D8D4] py-4 text-left text-2xl font-display" onClick={() => { if (item === 'CMS') setCurrentView('admin'); else if (item === 'Journal') setCurrentView('journal'); else if (item === 'New In' || item === 'Men' || item === 'Accessories') openCollection(item === 'Men' ? 'men' : item === 'Accessories' ? 'accessories' : 'new'); else setCurrentView('home'); setMobileMenuOpen(false); }}>
+                {navItems.map((item) => (
+                  <button key={item} type="button" className="block w-full border-b border-[#D8D8D4] py-4 text-left text-2xl font-display" onClick={() => { if (item === 'Journal') setCurrentView('journal'); else if (item === 'New In' || item === 'Women' || item === 'Men' || item === 'Accessories') openCollection(item === 'Men' ? 'men' : item === 'Women' ? 'women' : item === 'Accessories' ? 'accessories' : 'new'); else setCurrentView('home'); setMobileMenuOpen(false); }}>
                     {item}
                   </button>
                 ))}
@@ -1354,10 +1769,9 @@ function App() {
                 <div className="space-y-5">
                   <p className="text-sm">Signed in as <strong>{user.email}</strong></p>
                   <div className="flex flex-wrap gap-3">
-                    <button type="button" className="border border-[#D8D8D4] bg-white px-5 py-3 text-[10px] uppercase tracking-[0.24em]" onClick={() => { setCurrentView('orders'); setAuthOpen(false); }}>
+                    {user.role === 'customer' && <button type="button" className="border border-[#D8D8D4] bg-white px-5 py-3 text-[10px] uppercase tracking-[0.24em]" onClick={() => { setCurrentView('orders'); setAuthOpen(false); }}>
                       Order history
-                    </button>
-                    {user.role === 'admin' && <button type="button" className="border border-[#D8D8D4] bg-white px-5 py-3 text-[10px] uppercase tracking-[0.24em]" onClick={() => { setCurrentView('admin'); setAuthOpen(false); }}>Open CMS</button>}
+                    </button>}
                   </div>
                   <button type="button" className="border border-black bg-black px-5 py-3 text-[10px] uppercase tracking-[0.24em] text-white" onClick={handleLogout}>
                     Sign out
@@ -1388,7 +1802,7 @@ function App() {
 
       <AnimatePresence>
         {filtersOpen && (
-          <motion.aside initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ duration: 0.32, ease: 'easeOut' }} className="fixed right-0 top-0 z-[120] h-screen w-full max-w-md border-l border-[#D8D8D4] bg-[#F7F7F5] p-6">
+          <motion.aside initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ duration: 0.32, ease: 'easeOut' }} className="fixed right-0 top-0 z-[120] flex h-screen w-full max-w-md flex-col overflow-y-auto border-l border-[#D8D8D4] bg-[#F7F7F5] p-6">
             <div className="mb-6 flex items-center justify-between border-b border-[#D8D8D4] pb-4">
               <div>
                 <p className="nav-label text-[#8A8A86]">Refine</p>
@@ -1403,15 +1817,11 @@ function App() {
               <div>
                 <p className="nav-label text-[#8A8A86]">Category</p>
                 <div className="mt-3 space-y-2">
-                  {filterOptions.map((option) => (
+                  {activeFilterOptions.map((option) => (
                     <button
                       key={option}
                       type="button"
-                      onClick={() => {
-                        setSelectedFilter(option)
-                        setFiltersOpen(false)
-                        setCurrentView('plp')
-                      }}
+                      onClick={() => setSelectedFilter(option)}
                       className={`flex w-full items-center justify-between border px-4 py-3 text-left text-sm ${selectedFilter === option ? 'border-black bg-black text-white' : 'border-[#D8D8D4] bg-white text-black'}`}
                     >
                       <span>{option}</span>
@@ -1423,10 +1833,22 @@ function App() {
 
               <div>
                 <p className="nav-label text-[#8A8A86]">Price</p>
-                <div className="mt-3 flex items-center justify-between border border-[#D8D8D4] bg-white px-4 py-3">
-                  <span className="text-sm">Rp1.600.000 - Rp9.600.000</span>
-                  <SlidersHorizontal className="h-4 w-4" />
-                </div>
+                <select value={priceFilter} onChange={(event) => setPriceFilter(event.target.value)} className="mt-3 w-full border border-[#D8D8D4] bg-white px-4 py-3 text-sm focus-ring">
+                  <option value="all">All prices</option>
+                  <option value="under-3m">Under Rp3.000.000</option>
+                  <option value="3m-6m">Rp3.000.000–Rp5.999.999</option>
+                  <option value="6m-9m">Rp6.000.000–Rp9.000.000</option>
+                  <option value="over-9m">Over Rp9.000.000</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-[#D8D8D4] pt-5">
+                <button type="button" className="text-xs uppercase tracking-[0.18em] underline underline-offset-4" onClick={() => { setSelectedFilter('All'); setPriceFilter('all'); }}>
+                  Clear filters
+                </button>
+                <button type="button" className="border border-black bg-black px-5 py-3 text-[10px] uppercase tracking-[0.2em] text-white" onClick={() => setFiltersOpen(false)}>
+                  Show {filteredProducts.length} {filteredProducts.length === 1 ? 'piece' : 'pieces'}
+                </button>
               </div>
             </div>
           </motion.aside>
@@ -1439,7 +1861,7 @@ function App() {
             <div className="mb-6 flex items-center justify-between border-b border-[#D8D8D4] pb-4">
               <div>
                 <p className="nav-label text-[#8A8A86]">Your bag</p>
-                <h3 className="font-display text-4xl">{bag.length} items</h3>
+                <h3 className="font-display text-4xl">{bagItemCount} {bagItemCount === 1 ? 'item' : 'items'}</h3>
               </div>
               <button type="button" className="flex h-10 w-10 items-center justify-center border border-[#D8D8D4] bg-white" onClick={() => setCartOpen(false)}>
                 <X className="h-4 w-4" />
@@ -1473,15 +1895,18 @@ function App() {
                             <p className="text-sm font-medium">{item.name}</p>
                             <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]">Size {item.size}</p>
                           </div>
-                          <button type="button" className="text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]">Remove</button>
+                          <button type="button" className="text-[10px] uppercase tracking-[0.18em] text-[#686864] underline underline-offset-4 hover:text-black" aria-label={`Remove ${item.name} from bag`} onClick={() => setBag((current) => current.filter((bagItem) => !(bagItem.id === item.id && bagItem.size === item.size)))}>Remove</button>
                         </div>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 border border-[#D8D8D4] bg-white">
-                            <button type="button" className="flex h-8 w-8 items-center justify-center" onClick={() => setBag((current) => current.filter((bagItem) => !(bagItem.id === item.id && bagItem.size === item.size && bagItem.quantity <= 1) ? true : false))}>
+                            <button type="button" className="flex h-8 w-8 items-center justify-center" aria-label={`Decrease quantity of ${item.name}`} onClick={() => setBag((current) => current.flatMap((bagItem) => {
+                              if (bagItem.id !== item.id || bagItem.size !== item.size) return [bagItem]
+                              return bagItem.quantity > 1 ? [{ ...bagItem, quantity: bagItem.quantity - 1 }] : []
+                            }))}>
                               <Minus className="h-3 w-3" />
                             </button>
                             <span className="min-w-6 text-center text-xs">{item.quantity}</span>
-                            <button type="button" className="flex h-8 w-8 items-center justify-center" onClick={() => setBag((current) => current.map((bagItem) => bagItem.id === item.id && bagItem.size === item.size ? { ...bagItem, quantity: bagItem.quantity + 1 } : bagItem))}>
+                            <button type="button" className="flex h-8 w-8 items-center justify-center" aria-label={`Increase quantity of ${item.name}`} onClick={() => setBag((current) => current.map((bagItem) => bagItem.id === item.id && bagItem.size === item.size ? { ...bagItem, quantity: bagItem.quantity + 1 } : bagItem))}>
                               <Plus className="h-3 w-3" />
                             </button>
                           </div>
@@ -1514,8 +1939,8 @@ function ProductCard({ product, onClick, onQuickAdd }) {
     <div className="group relative overflow-hidden border border-[#D8D8D4] bg-[#F7F7F5]">
       <div className="relative overflow-hidden bg-[#F7F7F5]">
         {!imageLoaded && <div className="absolute inset-0 animate-pulse bg-[#F7F7F5]" />}
-        <button type="button" onClick={onClick} className="block w-full text-left">
-          <img src={product.gallery[0]} alt={product.name} className={`h-[360px] w-full object-cover transition duration-500 group-hover:scale-[1.02] ${imageLoaded ? 'opacity-100' : 'opacity-0'}`} onLoad={() => setImageLoaded(true)} />
+        <button type="button" onClick={onClick} className="block w-full overflow-hidden text-left">
+          <img src={product.gallery[0]} alt={product.name} className={`h-[360px] w-full object-cover transition duration-700 ease-out group-hover:scale-110 group-hover:brightness-[0.98] ${imageLoaded ? 'opacity-100' : 'opacity-0'}`} onLoad={() => setImageLoaded(true)} />
         </button>
         <div className="absolute inset-x-0 bottom-0 flex translate-y-full items-center justify-center bg-black/40 p-3 text-white opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100 md:group-hover:flex">
           <button type="button" className="flex items-center gap-2 text-[10px] uppercase tracking-[0.24em]" onClick={(event) => { event.stopPropagation(); onQuickAdd(); }}>
@@ -1571,6 +1996,41 @@ function InputField({ label, type = 'text', value, onChange, required = false, a
       <span className="mb-2 block text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]">{label}</span>
       <input type={type} value={value} onChange={(event) => onChange?.(event.target.value)} required={required} autoComplete={autoComplete} className="w-full border-b border-[#D8D8D4] bg-transparent px-0 py-3 text-sm text-black outline-none placeholder:text-[#8A8A86] focus:border-black" placeholder="" />
     </label>
+  )
+}
+
+function CmsImagePicker({ label, images, onFilesSelected, onRemove, busy, multiple = false, required = false }) {
+  return (
+    <div className="space-y-3">
+      <label className="block">
+        <span className="mb-2 block text-[10px] uppercase tracking-[0.18em] text-[#686864]">{label}</span>
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          multiple={multiple}
+          required={required}
+          disabled={busy}
+          onChange={onFilesSelected}
+          className="block w-full border border-[#D8D8D4] bg-[#F7F7F5] text-sm file:mr-4 file:border-0 file:bg-black file:px-4 file:py-3 file:text-[10px] file:uppercase file:tracking-[0.16em] file:text-white disabled:opacity-50"
+        />
+      </label>
+      <p className="text-xs leading-relaxed text-[#686864]">
+        JPG, PNG, WEBP, or GIF. Maximum 8 MB per file{multiple ? '; up to 5 images.' : '.'}
+      </p>
+      {busy && <p role="status" className="text-xs text-[#686864]">Uploading image…</p>}
+      {images.length > 0 && (
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+          {images.map((image, index) => (
+            <div key={`${image}-${index}`} className="relative aspect-square overflow-hidden border border-[#D8D8D4] bg-[#F7F7F5]">
+              <img src={image} alt={`${label} preview ${index + 1}`} className="h-full w-full object-cover" />
+              <button type="button" className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center bg-black text-white" aria-label={`Remove image ${index + 1}`} onClick={() => onRemove(index)}>
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
