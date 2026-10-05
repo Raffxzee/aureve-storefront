@@ -314,6 +314,9 @@ function App() {
   const [orderHistoryError, setOrderHistoryError] = useState('')
   const [adminTab, setAdminTab] = useState('products')
   const [adminProducts, setAdminProducts] = useState([])
+  const [productSearch, setProductSearch] = useState('')
+  const [productAudienceFilter, setProductAudienceFilter] = useState('all')
+  const [productStockFilter, setProductStockFilter] = useState('all')
   const [inventoryDrafts, setInventoryDrafts] = useState({})
   const [adminArticles, setAdminArticles] = useState([])
   const [adminOrders, setAdminOrders] = useState([])
@@ -334,6 +337,16 @@ function App() {
   const articleFormRef = useRef(null)
   const [contactDetails, setContactDetails] = useState(initialContactDetails)
   const [contactDraft, setContactDraft] = useState(initialContactDetails)
+  const filteredAdminProducts = adminProducts.filter((product) => {
+    const search = productSearch.trim().toLocaleLowerCase()
+    const matchesSearch = !search || `${product.name} ${product.category}`.toLocaleLowerCase().includes(search)
+    const matchesAudience = productAudienceFilter === 'all' || product.audience === productAudienceFilter
+    const hasStock = product.sizes.some((size) => (product.stockBySize?.[size] || 0) > 0)
+    const matchesStock = productStockFilter === 'all'
+      || (productStockFilter === 'in-stock' && hasStock)
+      || (productStockFilter === 'out-of-stock' && !hasStock)
+    return matchesSearch && matchesAudience && matchesStock
+  })
 
   useEffect(() => {
     const handleScroll = () => setHeaderSolid(window.scrollY > 12)
@@ -1449,12 +1462,46 @@ function App() {
                           Add product
                         </button>
                       </div>
+                      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                        <label className="block sm:col-span-1">
+                          <span className="mb-1 block text-[10px] uppercase tracking-[0.16em] text-[#686864]">Search name or category</span>
+                          <input
+                            type="search"
+                            value={productSearch}
+                            onChange={(event) => setProductSearch(event.target.value)}
+                            placeholder="e.g. blazer"
+                            className="w-full border border-[#D8D8D4] bg-white px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-[10px] uppercase tracking-[0.16em] text-[#686864]">Audience</span>
+                          <select value={productAudienceFilter} onChange={(event) => setProductAudienceFilter(event.target.value)} className="w-full border border-[#D8D8D4] bg-white px-3 py-2 text-sm">
+                            <option value="all">All audiences</option>
+                            <option value="women">Women</option>
+                            <option value="men">Men</option>
+                            <option value="unisex">Unisex</option>
+                          </select>
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-[10px] uppercase tracking-[0.16em] text-[#686864]">Stock</span>
+                          <select value={productStockFilter} onChange={(event) => setProductStockFilter(event.target.value)} className="w-full border border-[#D8D8D4] bg-white px-3 py-2 text-sm">
+                            <option value="all">All stock</option>
+                            <option value="in-stock">In stock</option>
+                            <option value="out-of-stock">Out of stock</option>
+                          </select>
+                        </label>
+                      </div>
+                      <p className="mb-2 text-xs text-[#686864]" role="status">
+                        Showing {filteredAdminProducts.length} of {adminProducts.length} products
+                      </p>
                       <div className="divide-y divide-[#D8D8D4]">
-                        {adminProducts.map((product) => (
+                        {filteredAdminProducts.length === 0 ? (
+                          <p className="border-y border-[#D8D8D4] py-8 text-sm text-[#686864]">No products match these filters.</p>
+                        ) : filteredAdminProducts.map((product) => (
                           <div key={product.id} className="flex flex-wrap items-center gap-4 py-4">
                             <img src={product.gallery[0]} alt={product.name} className="h-20 w-16 border border-[#D8D8D4] object-cover" />
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium">{product.name}</p>
+                              <h3 className="text-sm font-medium">{product.name}</h3>
                               <p className="mt-1 text-xs text-[#8A8A86]">{product.category} · {product.audience} · {formatPrice(product.price)}</p>
                               <p className="mt-1 text-[10px] uppercase tracking-[0.18em]">{product.isActive ? 'Live' : 'Hidden'}</p>
                             </div>
