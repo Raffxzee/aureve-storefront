@@ -20,10 +20,19 @@ services:
       NODE_ENV: production
       API_PORT: "3001"
       DATABASE_PATH: /app/data/aureve.sqlite
+      BACKUP_DIRECTORY: /app/backups
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      APP_BASE_URL: ${APP_BASE_URL:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
     volumes:
       - aureve_data:/app/data
+      - aureve_backups:/app/backups
     healthcheck:
       test:
         - CMD
@@ -38,3 +47,4 @@ services:
 
 volumes:
   aureve_data:
+  aureve_backups:
