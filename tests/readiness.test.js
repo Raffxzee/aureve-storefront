@@ -195,6 +195,9 @@ test('email verification, password reset, admin audit log, and database backup w
 
   const checkoutBody = {
     items: [{ id: 1, size: 'S', quantity: 2 }],
+    subtotal: 1,
+    shipping: 1,
+    total: 1,
     address: {
       name: 'Readiness Check',
       email,
@@ -219,6 +222,9 @@ test('email verification, password reset, admin audit log, and database backup w
     body: JSON.stringify(checkoutBody),
   })
   assert.equal(checkout.response.status, 201)
+  assert.equal(checkout.body.order.subtotal, 13440000)
+  assert.equal(checkout.body.order.shipping, 0)
+  assert.equal(checkout.body.order.total, 13440000)
   const checkoutRetry = await request('/api/checkout', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Idempotency-Key': firstCheckoutKey },

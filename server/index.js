@@ -656,10 +656,19 @@ function validateContactDetails(input) {
     if (instagramUrl.protocol !== 'https:' || !['instagram.com', 'www.instagram.com'].includes(instagramUrl.hostname) || instagramUrl.pathname === '/') {
       return { error: 'Enter a valid Instagram profile URL.' }
     }
+
   } catch {
     return { error: 'Enter a valid Instagram profile URL.' }
   }
   return { value: { email, whatsapp, instagram, phone } }
+}
+
+function calculateShipping(shippingMethod, subtotal) {
+  if (!Number.isSafeInteger(subtotal) || subtotal < 0) {
+    throw new Error('Order subtotal must be a non-negative integer.')
+  }
+  if (shippingMethod === 'express') return 400000
+  return subtotal >= 8000000 ? 0 : 240000
 }
 
 function isSecureTrackingUrl(value) {
@@ -997,8 +1006,11 @@ app.post('/api/checkout', (request, response) => {
   }
 
   const subtotal = normalizedItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
-  const shipping = shippingMethod === 'standard' && subtotal >= 8000000 ? 0 : shippingMethod === 'express' ? 400000 : 240000
+  const shipping = calculateShipping(shippingMethod, subtotal)
   const total = subtotal + shipping
+  if (!Number.isSafeInteger(total)) {
+    return response.status(400).json({ error: 'The order total is outside the supported range.' })
+  }
   const orderNumber = `AUR-${randomBytes(4).toString('hex').toUpperCase()}`
   const createOrder = database.transaction(() => {
     const alreadyCreated = getExistingCheckout()
