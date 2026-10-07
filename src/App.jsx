@@ -274,7 +274,7 @@ function App() {
   const [articles, setArticles] = useState(initialArticles)
   const [selectedProductId, setSelectedProductId] = useState(1)
   const [selectedArticle, setSelectedArticle] = useState(null)
-  const [selectedSize, setSelectedSize] = useState('M')
+  const [selectedSize, setSelectedSize] = useState(() => initialProductCatalog[0]?.sizes[0] || '')
   const [bag, setBag] = useState([])
   const [cartOpen, setCartOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -666,7 +666,7 @@ function App() {
     addProductToBag(selectedProduct, selectedSize)
     setCartOpen(true)
     setError('')
-    setSelectedSize(selectedProduct.sizes.find((size) => (selectedProduct.stockBySize?.[size] || 0) > 0) || '')
+    setSelectedSize(selectedProduct.sizes[0] || '')
   }
 
   const handleQuickAdd = (product) => {
@@ -1070,7 +1070,7 @@ function App() {
                 {customerOrders.map((order) => {
                   const paymentLabel = order.paymentStatus === 'sandbox_pending'
                     ? 'Pending · demo payment, no charge'
-                    : order.paymentStatus === 'paid' ? 'Paid' : order.paymentStatus
+                    : order.paymentStatus === 'paid' ? 'Paid' : order.paymentStatus === 'expired' ? 'Expired' : order.paymentStatus
                   const fulfillmentLabel = {
                     processing: 'Processing',
                     packed: 'Packed',
@@ -1869,7 +1869,7 @@ function App() {
                     {bag.map((item) => (
                       <div key={`${item.id}-${item.size}`} className="flex gap-4 border-b border-[#D8D8D4] pb-4">
                         <div className="h-20 w-16 overflow-hidden border border-[#D8D8D4] bg-white">
-                          <img src={productCatalog.find((product) => product.id === item.id)?.gallery[0]} alt={item.name} className="h-full w-full object-cover" />
+                          <img src={productCatalog.find((product) => product.id === item.id)?.gallery[0] || '/placeholder.png'} alt={item.name} className="h-full w-full object-cover" />
                         </div>
                         <div className="flex w-full flex-col justify-between">
                           <div className="flex items-start justify-between gap-2">

@@ -17,6 +17,8 @@ let testDirectory
 let serverProcess
 let apiUrl
 let serverOutput = ''
+let sharedAdminCookie
+let sharedCustomerCookie
 
 async function getAvailablePort() {
   const listener = createServer()
@@ -65,6 +67,7 @@ before(async () => {
     env: {
       ...process.env,
       NODE_ENV: 'test',
+      SEED_DEV_ADMIN: 'true',
       DATABASE_PATH: resolve(testDirectory, 'app.sqlite'),
       API_PORT: String(port),
     },
@@ -118,6 +121,7 @@ test('email verification, password reset, admin audit log, and database backup w
   })
   assert.equal(verifiedLogin.response.status, 200)
   const oldSessionCookie = verifiedLogin.response.headers.get('set-cookie').split(';')[0]
+  sharedCustomerCookie = oldSessionCookie
 
   const forgotPassword = await request('/api/auth/forgot-password', {
     method: 'POST',
@@ -150,6 +154,18 @@ test('email verification, password reset, admin audit log, and database backup w
   })
   assert.equal(adminLogin.response.status, 200)
   const adminCookie = adminLogin.response.headers.get('set-cookie').split(';')[0]
+  sharedAdminCookie = adminCookie
+  const blockedOrigin = await request('/api/admin/settings/contact', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Cookie: adminCookie, Origin: 'https://attacker.example' },
+    body: JSON.stringify({
+      email: 'support@example.com',
+      whatsapp: '+62 812 3456 7890',
+      instagram: 'https://www.instagram.com/aureve/',
+      phone: '+62 812 3456 7890',
+    }),
+  })
+  assert.equal(blockedOrigin.response.status, 403)
   const contactUpdate = await request('/api/admin/settings/contact', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
@@ -326,6 +342,106 @@ test('email verification, password reset, admin audit log, and database backup w
   const checkedBackup = new Database(resolve(backupDirectory, backupFiles[0]), { readonly: true })
   assert.equal(checkedBackup.prepare('SELECT value FROM backup_probe').get().value, 'intact')
   checkedBackup.close()
+})
+
+test('expired unpaid orders are cancelled and stock is restored once', async () => {
+  assert.ok(sharedAdminCookie)
+  assert.ok(sharedCustomerCookie)
+
+  const seedInventory = await request('/api/admin/products/2/inventory', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Cookie: sharedAdminCookie },
+    body: JSON.stringify({ stockBySize: { S: 0, M: 3, L: 0, XL: 0 } }),
+  })
+  assert.equal(seedInventory.response.status, 200)
+  assert.equal(seedInventory.body.product.stockBySize.M, 3)
+
+  const expiredCheckout = await request('/api/checkout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': '00000000-0000-4000-8000-000000000002', Cookie: sharedCustomerCookie },
+    body: JSON.stringify({
+      items: [{ id: 2, size: 'M', quantity: 2 }],
+      address: {
+        name: 'Readiness Check',
+        email: 'readiness-check@example.com',
+        phone: '+62 812 3456 7890',
+        address: '1 Example Street',
+        city: 'Jakarta',
+        postalCode: '12345',
+        country: 'Indonesia',
+      },
+      shippingMethod: 'standard',
+      paymentMethod: 'sandbox',
+    }),
+  })
+  assert.equal(expiredCheckout.response.status, 201)
+
+  const expiredDatabase = new Database(resolve(testDirectory, 'app.sqlite'))
+  expiredDatabase.prepare('UPDATE orders SET reservation_expires_at = ? WHERE order_number = ?')
+    .run(Date.now() - 1000, expiredCheckout.body.order.orderNumber)
+  expiredDatabase.close()
+
+  const expiredSweep = await request('/api/admin/orders/expire-reservations', {
+    method: 'POST',
+    headers: { Cookie: sharedAdminCookie },
+  })
+  assert.equal(expiredSweep.response.status, 200)
+  assert.equal(expiredSweep.body.cancelledCount, 1)
+
+  const restoredInventory = await request('/api/admin/products', { headers: { Cookie: sharedAdminCookie } })
+  const restoredProduct = restoredInventory.body.products.find((product) => product.id === 2)
+  assert.equal(restoredProduct.stockBySize.M, 3)
+
+  const paidDatabase = new Database(resolve(testDirectory, 'app.sqlite'))
+  paidDatabase.transaction(() => {
+    const orderNumber = `AUR-PAID-${Date.now()}`
+    const insertOrder = paidDatabase.prepare(`
+      INSERT INTO orders (
+        order_number, user_id, subtotal, shipping, total, shipping_method,
+        shipping_address, payment_method, payment_status, fulfillment_status,
+        reservation_expires_at, currency_code
+      ) VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 'processing', ?, 'IDR')
+    `)
+    const subtotal = 1000000
+    const shipping = 240000
+    insertOrder.run(
+      orderNumber,
+      subtotal,
+      shipping,
+      subtotal + shipping,
+      'standard',
+      JSON.stringify({
+        name: 'Readiness Check',
+        email: 'readiness-check@example.com',
+        phone: '+62 812 3456 7890',
+        address: '1 Example Street',
+        city: 'Jakarta',
+        postalCode: '12345',
+        country: 'Indonesia',
+      }),
+      'sandbox',
+      'paid',
+      Date.now() - 1000,
+    )
+    paidDatabase.prepare(`
+      INSERT INTO order_items (order_id, product_id, product_name, unit_price, size, quantity)
+      VALUES ((SELECT id FROM orders WHERE order_number = ?), 2, 'Relaxed Leather Trench', ?, 'M', 1)
+    `).run(orderNumber, subtotal)
+    paidDatabase.prepare('UPDATE product_inventory SET quantity = quantity - 1, updated_at = CURRENT_TIMESTAMP WHERE product_id = 2 AND size = ?')
+      .run('M')
+  })()
+  paidDatabase.close()
+
+  const paidSweep = await request('/api/admin/orders/expire-reservations', {
+    method: 'POST',
+    headers: { Cookie: sharedAdminCookie },
+  })
+  assert.equal(paidSweep.response.status, 200)
+  assert.equal(paidSweep.body.cancelledCount, 0)
+
+  const finalInventory = await request('/api/admin/products', { headers: { Cookie: sharedAdminCookie } })
+  const finalProduct = finalInventory.body.products.find((product) => product.id === 2)
+  assert.equal(finalProduct.stockBySize.M, 2)
 })
 
 test('production refuses to start without required deployment secrets before opening the database', () => {

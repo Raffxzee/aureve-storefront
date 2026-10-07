@@ -18,9 +18,11 @@ services:
       - "3001"
     environment:
       NODE_ENV: production
+      SEED_DEV_ADMIN: "false"
       API_PORT: "3001"
       DATABASE_PATH: /app/data/aureve.sqlite
       BACKUP_DIRECTORY: /app/backups
+      BACKUP_RETENTION: ${BACKUP_RETENTION:-14}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       APP_BASE_URL: ${APP_BASE_URL:-}
@@ -30,6 +32,8 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      ORDER_RESERVATION_MINUTES: ${ORDER_RESERVATION_MINUTES:-45}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
     volumes:
       - aureve_data:/app/data
       - aureve_backups:/app/backups

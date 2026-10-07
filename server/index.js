@@ -18,12 +18,14 @@ const production = process.env.NODE_ENV === 'production'
 const developmentAdminEmail = production ? '' : 'admin@aureve.local'
 const adminEmail = (process.env.ADMIN_EMAIL || developmentAdminEmail).trim().toLowerCase()
 const adminPassword = process.env.ADMIN_PASSWORD || (production ? '' : 'AureveDemo2026!')
+const seedDevAdmin = process.env.SEED_DEV_ADMIN === 'true' && !production
 const smtpHost = process.env.SMTP_HOST?.trim()
 const smtpPort = Number(process.env.SMTP_PORT || 587)
 const smtpUser = process.env.SMTP_USER?.trim()
 const smtpPassword = process.env.SMTP_PASSWORD
 const mailFrom = process.env.MAIL_FROM?.trim()
 const appBaseUrl = process.env.APP_BASE_URL?.trim().replace(/\/+$/, '')
+const orderReservationMinutes = Number(process.env.ORDER_RESERVATION_MINUTES || 45)
 const appBaseUrlIsHttps = (() => {
   try {
     return new URL(appBaseUrl).protocol === 'https:'
@@ -37,6 +39,9 @@ if (production && (
   || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail) || adminPassword.length < 12
 )) {
   throw new Error('Production requires valid admin credentials, SMTP credentials, MAIL_FROM, and an HTTPS APP_BASE_URL.')
+}
+if (!Number.isInteger(orderReservationMinutes) || orderReservationMinutes < 1 || orderReservationMinutes > 1440) {
+  throw new Error('ORDER_RESERVATION_MINUTES must be a whole number between 1 and 1440.')
 }
 mkdirSync(uploadDirectory, { recursive: true })
 const defaultContactDetails = {
@@ -98,6 +103,7 @@ database.exec(`
     payment_method TEXT NOT NULL,
     payment_status TEXT NOT NULL,
     fulfillment_status TEXT NOT NULL DEFAULT 'processing',
+    reservation_expires_at INTEGER,
     currency_code TEXT NOT NULL DEFAULT 'IDR',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
@@ -158,6 +164,7 @@ database.exec(`
   );
   CREATE INDEX IF NOT EXISTS sessions_expiry_idx ON sessions(expires_at);
   CREATE INDEX IF NOT EXISTS orders_user_idx ON orders(user_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS orders_reservation_expiry_idx ON orders(payment_status, fulfillment_status, reservation_expires_at);
   CREATE INDEX IF NOT EXISTS email_verification_user_idx ON email_verification_tokens(user_id);
   CREATE INDEX IF NOT EXISTS email_verification_expiry_idx ON email_verification_tokens(expires_at);
   CREATE INDEX IF NOT EXISTS password_reset_user_idx ON password_reset_tokens(user_id);
@@ -196,6 +203,16 @@ if (!orderColumns.some((column) => column.name === 'tracking_number')) {
 if (!orderColumns.some((column) => column.name === 'tracking_url')) {
   database.exec('ALTER TABLE orders ADD COLUMN tracking_url TEXT')
 }
+if (!orderColumns.some((column) => column.name === 'reservation_expires_at')) {
+  database.exec('ALTER TABLE orders ADD COLUMN reservation_expires_at INTEGER')
+  database.prepare(`
+    UPDATE orders
+    SET reservation_expires_at = CAST(strftime('%s', created_at) AS INTEGER) * 1000 + ?
+    WHERE reservation_expires_at IS NULL
+      AND payment_status = 'sandbox_pending'
+      AND fulfillment_status = 'processing'
+  `).run(orderReservationMinutes * 60 * 1000)
+}
 const orderUserColumn = database.pragma('table_info(orders)').find((column) => column.name === 'user_id')
 if (orderUserColumn?.notnull) {
   database.pragma('foreign_keys = OFF')
@@ -217,21 +234,23 @@ if (orderUserColumn?.notnull) {
           payment_method TEXT NOT NULL,
           payment_status TEXT NOT NULL,
           fulfillment_status TEXT NOT NULL DEFAULT 'processing',
+          reservation_expires_at INTEGER,
           currency_code TEXT NOT NULL DEFAULT 'IDR',
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
         INSERT INTO orders_guest_checkout (
           id, order_number, user_id, subtotal, shipping, total, shipping_method,
           shipping_address, shipping_carrier, tracking_number, tracking_url,
-          payment_method, payment_status, fulfillment_status, currency_code, created_at
+          payment_method, payment_status, fulfillment_status, reservation_expires_at, currency_code, created_at
         )
         SELECT id, order_number, user_id, subtotal, shipping, total, shipping_method,
           shipping_address, shipping_carrier, tracking_number, tracking_url,
-          payment_method, payment_status, fulfillment_status, currency_code, created_at
+          payment_method, payment_status, fulfillment_status, reservation_expires_at, currency_code, created_at
         FROM orders;
         DROP TABLE orders;
         ALTER TABLE orders_guest_checkout RENAME TO orders;
         CREATE INDEX IF NOT EXISTS orders_user_idx ON orders(user_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS orders_reservation_expiry_idx ON orders(payment_status, fulfillment_status, reservation_expires_at);
       `)
     })()
   } finally {
@@ -300,7 +319,7 @@ if (!database.prepare('SELECT 1 FROM articles LIMIT 1').get()) {
 }
 
 if (production) database.prepare("UPDATE users SET role = 'customer' WHERE role = 'admin'").run()
-if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail) && adminPassword.length >= 12) {
+if ((production || seedDevAdmin) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail) && adminPassword.length >= 12) {
   const adminHash = bcrypt.hashSync(adminPassword, 12)
   database.prepare(`
     INSERT INTO users (name, email, password_hash, role) VALUES ('AUREVÉ Admin', ?, ?, 'admin')
@@ -327,6 +346,31 @@ const mailTransport = smtpHost
 app.set('trust proxy', process.env.NODE_ENV === 'production' ? 1 : false)
 app.use(express.json({ limit: '32kb' }))
 app.use(cookieParser())
+app.use((request, response, next) => {
+  response.setHeader('X-Content-Type-Options', 'nosniff')
+  response.setHeader('X-Frame-Options', 'SAMEORIGIN')
+  response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  next()
+})
+const allowedRequestOrigins = new Set([
+  appBaseUrl,
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  ...(process.env.ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim().replace(/\/+$/, '')).filter(Boolean),
+].filter(Boolean))
+app.use((request, response, next) => {
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) return next()
+  const origin = request.get('Origin')
+  const referer = request.get('Referer')
+  const source = origin || (referer ? (() => {
+    try { return new URL(referer).origin } catch { return '' }
+  })() : '')
+  if (source && !allowedRequestOrigins.has(source)) {
+    return response.status(403).json({ error: 'This request origin is not allowed.' })
+  }
+  next()
+})
 app.use('/api/uploads', express.static(uploadDirectory, { maxAge: '1y', immutable: true }))
 
 const adminLoginLimiter = rateLimit({
@@ -430,11 +474,68 @@ function createOneTimeToken(tableName, userId, expiresAt) {
   return token
 }
 
+function recordSystemAudit(actorEmail, action, entityType, entityId = null, details = {}) {
+  database.prepare(`
+    INSERT INTO admin_audit_logs (actor_email, action, entity_type, entity_id, details)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(actorEmail, action, entityType, entityId === null ? null : String(entityId), JSON.stringify(details))
+}
+
 const recordAdminAudit = (request, action, entityType, entityId = null, details = {}) => {
   database.prepare(`
     INSERT INTO admin_audit_logs (actor_email, action, entity_type, entity_id, details)
     VALUES (?, ?, ?, ?, ?)
   `).run(request.user.email, action, entityType, entityId === null ? null : String(entityId), JSON.stringify(details))
+}
+
+function expirePendingOrderReservations({ actorEmail = 'system' } = {}) {
+  const now = Date.now()
+  const expiredOrders = database.prepare(`
+    SELECT id
+    FROM orders
+    WHERE payment_status IN ('sandbox_pending', 'pending')
+      AND fulfillment_status = 'processing'
+      AND reservation_expires_at IS NOT NULL
+      AND reservation_expires_at <= ?
+    ORDER BY id
+  `).all(now)
+
+  if (expiredOrders.length === 0) {
+    return 0
+  }
+
+  const expireReservation = database.prepare(`
+    UPDATE orders
+    SET fulfillment_status = 'cancelled', payment_status = 'expired'
+    WHERE id = ?
+      AND payment_status IN ('sandbox_pending', 'pending')
+      AND fulfillment_status = 'processing'
+      AND reservation_expires_at IS NOT NULL
+      AND reservation_expires_at <= ?
+  `)
+  const restoreStock = database.prepare(`
+    UPDATE product_inventory SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP
+    WHERE product_id = ? AND size = ?
+  `)
+  const getItems = database.prepare('SELECT product_id AS productId, size, quantity FROM order_items WHERE order_id = ?')
+
+  let cancelledCount = 0
+  database.transaction(() => {
+    for (const { id: orderId } of expiredOrders) {
+      if (!expireReservation.run(orderId, now).changes) continue
+      const items = getItems.all(orderId)
+      for (const item of items) {
+        restoreStock.run(item.quantity, item.productId, item.size)
+      }
+      cancelledCount += 1
+      recordSystemAudit(actorEmail, 'expired', 'order', orderId, {
+        reason: 'reservation_expired',
+        restoredItems: items.length,
+      })
+    }
+  })()
+
+  return cancelledCount
 }
 
 function detectImageFormat(buffer) {
@@ -655,7 +756,9 @@ app.post('/api/auth/register', registrationLimiter, async (request, response, ne
     }
     response.status(201).json({ message: 'Account created. Check your email to verify your account before signing in.' })
   } catch (error) {
-    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') return response.status(409).json({ error: 'An account with this email already exists.' })
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return response.status(201).json({ message: 'Account created. Check your email to verify your account before signing in.' })
+    }
     next(error)
   }
 })
@@ -918,10 +1021,11 @@ app.post('/api/checkout', (request, response) => {
         throw stockError
       }
     }
+    const reservationExpiresAt = Date.now() + (orderReservationMinutes * 60 * 1000)
     const result = database.prepare(`
-      INSERT INTO orders (order_number, user_id, subtotal, shipping, total, shipping_method, shipping_address, payment_method, payment_status, currency_code)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'IDR')
-    `).run(orderNumber, checkoutUser?.id ?? null, subtotal, shipping, total, shippingMethod, JSON.stringify(address), paymentMethod, 'sandbox_pending')
+      INSERT INTO orders (order_number, user_id, subtotal, shipping, total, shipping_method, shipping_address, payment_method, payment_status, reservation_expires_at, currency_code)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'IDR')
+    `).run(orderNumber, checkoutUser?.id ?? null, subtotal, shipping, total, shippingMethod, JSON.stringify(address), paymentMethod, 'sandbox_pending', reservationExpiresAt)
     const insertItem = database.prepare(`
       INSERT INTO order_items (order_id, product_id, product_name, unit_price, size, quantity)
       VALUES (?, ?, ?, ?, ?, ?)
@@ -948,6 +1052,7 @@ app.post('/api/checkout', (request, response) => {
         currencyCode: 'IDR',
         paymentStatus: 'sandbox_pending',
         shippingMethod,
+        reservationExpiresAt,
       },
       remainingStock,
     }
@@ -1114,6 +1219,11 @@ app.get('/api/admin/orders', requireAdmin, (_request, response) => {
   response.json({ orders })
 })
 
+app.post('/api/admin/orders/expire-reservations', requireAdmin, (request, response) => {
+  const cancelledCount = expirePendingOrderReservations({ actorEmail: request.user.email })
+  response.json({ cancelledCount })
+})
+
 app.patch('/api/admin/orders/:id/shipment', requireAdmin, (request, response) => {
   const orderId = Number(request.params.id)
   const existing = database.prepare(`
@@ -1183,6 +1293,20 @@ app.patch('/api/admin/orders/:id', requireAdmin, (request, response) => {
   })()
   response.json({ success: true })
 })
+
+try {
+  expirePendingOrderReservations()
+  const reservationExpirySweep = setInterval(() => {
+    try {
+      expirePendingOrderReservations()
+    } catch (error) {
+      console.error('Reservation expiry sweep failed:', error)
+    }
+  }, 60_000)
+  reservationExpirySweep.unref()
+} catch (error) {
+  console.error('Initial reservation expiry sweep failed:', error)
+}
 
 app.use((error, _request, response, next) => {
   if (response.headersSent) return next(error)
