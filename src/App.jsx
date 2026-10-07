@@ -302,7 +302,7 @@ function App() {
   const [adminLoginForm, setAdminLoginForm] = useState({ email: '', password: '' })
   const [adminLoginError, setAdminLoginError] = useState('')
   const [adminLoginBusy, setAdminLoginBusy] = useState(false)
-  const [checkoutForm, setCheckoutForm] = useState({ firstName: '', lastName: '', email: '', phone: '', address: '', city: '', postalCode: '', country: 'Indonesia' })
+  const [checkoutForm, setCheckoutForm] = useState({ firstName: '', lastName: '', email: '', phone: '', address: '', district: '', city: '', province: '', postalCode: '', country: 'Indonesia' })
   const [checkoutError, setCheckoutError] = useState('')
   const [checkoutBusy, setCheckoutBusy] = useState(false)
   const [checkoutIdempotencyKey, setCheckoutIdempotencyKey] = useState(createCheckoutIdempotencyKey)
@@ -320,6 +320,9 @@ function App() {
   const [inventoryDrafts, setInventoryDrafts] = useState({})
   const [adminArticles, setAdminArticles] = useState([])
   const [adminOrders, setAdminOrders] = useState([])
+  const [orderSearch, setOrderSearch] = useState('')
+  const [orderStatusFilter, setOrderStatusFilter] = useState('all')
+  const [orderPaymentFilter, setOrderPaymentFilter] = useState('all')
   const [adminAuditLogs, setAdminAuditLogs] = useState([])
   const [adminAuditError, setAdminAuditError] = useState('')
   const [shipmentDrafts, setShipmentDrafts] = useState({})
@@ -346,6 +349,13 @@ function App() {
       || (productStockFilter === 'in-stock' && hasStock)
       || (productStockFilter === 'out-of-stock' && !hasStock)
     return matchesSearch && matchesAudience && matchesStock
+  })
+  const filteredAdminOrders = adminOrders.filter((order) => {
+    const search = orderSearch.trim().toLocaleLowerCase()
+    const matchesSearch = !search || `${order.orderNumber} ${order.customerName} ${order.customerEmail}`.toLocaleLowerCase().includes(search)
+    const matchesStatus = orderStatusFilter === 'all' || order.fulfillmentStatus === orderStatusFilter
+    const matchesPayment = orderPaymentFilter === 'all' || order.paymentStatus === orderPaymentFilter
+    return matchesSearch && matchesStatus && matchesPayment
   })
 
   useEffect(() => {
@@ -756,6 +766,14 @@ function App() {
         setCheckoutError('City is required')
         return
       }
+      if (!checkoutForm.district.trim()) {
+        setCheckoutError('District is required')
+        return
+      }
+      if (!checkoutForm.province.trim()) {
+        setCheckoutError('Province is required')
+        return
+      }
       if (!checkoutForm.postalCode.trim()) {
         setCheckoutError('Postal code is required')
         return
@@ -783,7 +801,9 @@ function App() {
             email: checkoutForm.email,
             phone: checkoutForm.phone,
             address: checkoutForm.address,
+            district: checkoutForm.district,
             city: checkoutForm.city,
+            province: checkoutForm.province,
             postalCode: checkoutForm.postalCode,
             country: checkoutForm.country,
           },
@@ -1629,11 +1649,34 @@ function App() {
                 {adminTab === 'orders' && (
                   <section aria-label="Order management">
                     <div className="mb-4 border-b border-[#D8D8D4] pb-3"><p className="nav-label text-[#8A8A86]">Store operations</p><h2 className="font-display text-4xl">Orders</h2></div>
-                    {adminOrders.length === 0 ? <p className="py-10 text-sm text-[#8A8A86]">No orders yet.</p> : (
+                    <div className="mb-4 grid gap-3 border-b border-[#D8D8D4] pb-4 sm:grid-cols-3">
+                      <label className="block">
+                        <span className="mb-1 block text-[10px] uppercase tracking-[0.16em] text-[#686864]">Search order</span>
+                        <input type="search" value={orderSearch} onChange={(event) => setOrderSearch(event.target.value)} placeholder="Order, name, or email" className="w-full border border-[#D8D8D4] bg-white px-3 py-2 text-sm" />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-[10px] uppercase tracking-[0.16em] text-[#686864]">Fulfillment</span>
+                        <select value={orderStatusFilter} onChange={(event) => setOrderStatusFilter(event.target.value)} className="w-full border border-[#D8D8D4] bg-white px-3 py-2 text-sm">
+                          <option value="all">All fulfillment</option>
+                          {['processing', 'packed', 'shipped', 'delivered', 'cancelled'].map((status) => <option key={status} value={status}>{status[0].toUpperCase() + status.slice(1)}</option>)}
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-[10px] uppercase tracking-[0.16em] text-[#686864]">Payment</span>
+                        <select value={orderPaymentFilter} onChange={(event) => setOrderPaymentFilter(event.target.value)} className="w-full border border-[#D8D8D4] bg-white px-3 py-2 text-sm">
+                          <option value="all">All payment</option>
+                          <option value="sandbox_pending">Sandbox pending</option>
+                          <option value="paid">Paid</option>
+                          <option value="expired">Expired</option>
+                        </select>
+                      </label>
+                    </div>
+                    <p className="mb-3 text-xs text-[#686864]" role="status">Showing {filteredAdminOrders.length} of {adminOrders.length} orders</p>
+                    {filteredAdminOrders.length === 0 ? <p className="py-10 text-sm text-[#8A8A86]">{adminOrders.length === 0 ? 'No orders yet.' : 'No orders match these filters.'}</p> : (
                       <div className="overflow-x-auto">
                         <table className="w-full min-w-[760px] border-collapse text-left text-sm">
                           <thead><tr className="border-b border-[#D8D8D4] text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]"><th className="py-3 pr-4">Order</th><th className="py-3 pr-4">Customer</th><th className="py-3 pr-4">Delivery</th><th className="py-3 pr-4">Total</th><th className="py-3">Status</th></tr></thead>
-                          <tbody>{adminOrders.map((order) => (
+                          <tbody>{filteredAdminOrders.map((order) => (
                             <Fragment key={order.id}>
                               <tr key={order.id} className="border-b border-[#D8D8D4] align-top">
                                 <td className="py-4 pr-4">
@@ -1657,7 +1700,7 @@ function App() {
                                         <p className="text-sm font-medium">{order.shippingAddress.name}</p>
                                         <p className="mt-1 text-sm">{order.shippingAddress.email}</p>
                                         <p className="mt-1 text-sm">{order.shippingAddress.phone}</p>
-                                        <p className="mt-3 text-sm leading-relaxed text-[#686864]">{order.shippingAddress.address}<br />{order.shippingAddress.city}, {order.shippingAddress.postalCode}<br />{order.shippingAddress.country}</p>
+                                        <p className="mt-3 text-sm leading-relaxed text-[#686864]">{order.shippingAddress.address}<br />{order.shippingAddress.district ? `${order.shippingAddress.district}, ` : ''}{order.shippingAddress.city}<br />{order.shippingAddress.province ? `${order.shippingAddress.province}, ` : ''}{order.shippingAddress.postalCode}<br />{order.shippingAddress.country}</p>
                                         <p className="mt-3 text-xs text-[#686864]">Placed {new Date(order.createdAt).toLocaleString('id-ID')}</p>
                                       </section>
                                       <section aria-label="Order items">
@@ -1822,7 +1865,9 @@ function App() {
                           </div>
                           <div className="grid gap-5 md:grid-cols-2">
                             <div className="md:col-span-2"><InputField label="Address" value={checkoutForm.address} onChange={(value) => setCheckoutForm((form) => ({ ...form, address: value }))} required /></div>
+                            <InputField label="District / Kecamatan" value={checkoutForm.district} onChange={(value) => setCheckoutForm((form) => ({ ...form, district: value }))} required />
                             <InputField label="City" value={checkoutForm.city} onChange={(value) => setCheckoutForm((form) => ({ ...form, city: value }))} required />
+                            <InputField label="Province" value={checkoutForm.province} onChange={(value) => setCheckoutForm((form) => ({ ...form, province: value }))} required />
                             <InputField label="Postal code" value={checkoutForm.postalCode} onChange={(value) => setCheckoutForm((form) => ({ ...form, postalCode: value }))} required />
                             <div className="md:col-span-2"><InputField label="Country" value={checkoutForm.country} onChange={(value) => setCheckoutForm((form) => ({ ...form, country: value }))} required /></div>
                             <div className="space-y-3 md:col-span-2">

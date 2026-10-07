@@ -920,7 +920,7 @@ app.post('/api/checkout', (request, response) => {
     return response.status(400).json({ error: 'A valid checkout idempotency key is required.' })
   }
   const idempotencyKeyHash = hashToken(idempotencyKey)
-  const addressFields = ['name', 'email', 'phone', 'address', 'city', 'postalCode', 'country']
+  const addressFields = ['name', 'email', 'phone', 'address', 'district', 'city', 'province', 'postalCode', 'country']
   if (!address || addressFields.some((field) => typeof address[field] !== 'string' || !address[field].trim())) {
     return response.status(400).json({ error: 'Complete all contact and delivery details.' })
   }
