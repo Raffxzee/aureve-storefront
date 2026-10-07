@@ -489,6 +489,19 @@ function App() {
       : productCatalog
   const selectedProduct = activeCatalog.find((item) => item.id === selectedProductId) || activeCatalog[0]
 
+  useEffect(() => {
+    const pageTitle = currentView === 'pdp' && selectedProduct
+      ? `${selectedProduct.name} | AUREVÉ`
+      : currentView === 'article' && selectedArticle
+        ? `${selectedArticle.title} | AUREVÉ`
+        : currentView === 'admin'
+          ? 'AUREVÉ | Admin'
+          : currentView === 'plp'
+            ? `${collectionMode === 'new' ? 'New collection' : collectionMode} | AUREVÉ`
+            : 'AUREVÉ | Luxury Fashion'
+    document.title = pageTitle
+  }, [collectionMode, currentView, selectedArticle, selectedProduct])
+
   const activeFilterOptions = ['All', ...new Set(activeCatalog.map((product) => product.category))]
   const filteredProducts = activeCatalog
     .filter((product) => selectedFilter === 'All' || product.category === selectedFilter)

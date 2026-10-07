@@ -28,6 +28,8 @@ The Contact tab controls the footer email, WhatsApp number, Instagram profile, a
 
 Development admin privileges are not provisioned in production. Set `SEED_DEV_ADMIN=true` explicitly for the local demo admin; production always disables that flag and uses the configured `ADMIN_EMAIL` and `ADMIN_PASSWORD`. Public customer registration always creates a customer role; the CMS API rejects non-admin accounts.
 
+The Vite build includes basic `robots.txt` and `sitemap.xml` files plus dynamic page titles. Replace the placeholder host in `public/sitemap.xml` with the real public HTTPS domain before launch.
+
 ## Before production
 
 Checkout remains in sandbox mode: orders are saved as `sandbox_pending`, and no payment is collected. Reservations expire after `ORDER_RESERVATION_MINUTES` (45 by default), after which unpaid orders are cancelled and stock is restored. Choose a payment provider later and configure server-side secrets/webhook credentials. Do not collect or store card numbers in this app; use the provider's hosted checkout or tokenized payment fields.
