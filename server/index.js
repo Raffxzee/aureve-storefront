@@ -26,6 +26,7 @@ const smtpPassword = process.env.SMTP_PASSWORD
 const mailFrom = process.env.MAIL_FROM?.trim()
 const appBaseUrl = process.env.APP_BASE_URL?.trim().replace(/\/+$/, '')
 const orderReservationMinutes = Number(process.env.ORDER_RESERVATION_MINUTES || 45)
+const dummyPasswordHash = bcrypt.hashSync('aureve-invalid-password', 12)
 const appBaseUrlIsHttps = (() => {
   try {
     return new URL(appBaseUrl).protocol === 'https:'
@@ -39,6 +40,36 @@ if (production && (
   || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail) || adminPassword.length < 12
 )) {
   throw new Error('Production requires valid admin credentials, SMTP credentials, MAIL_FROM, and an HTTPS APP_BASE_URL.')
+}
+const knownDemoAdminPassword = 'AureveDemo2026!'
+const isExampleHostname = (value) => {
+  try {
+    const hostname = new URL(value).hostname
+    return hostname === 'example.com' || hostname.endsWith('.example.com') || hostname.endsWith('.local')
+  } catch {
+    return true
+  }
+}
+const mailFromAddress = mailFrom?.match(/<([^>]+)>/)?.[1] || mailFrom || ''
+const isExampleEmail = (value) => {
+  const domain = value.split('@')[1]?.toLowerCase() || ''
+  return !domain || domain === 'example.com' || domain.endsWith('.example.com') || domain.endsWith('.local')
+}
+if (production && (
+  adminPassword === knownDemoAdminPassword
+  || adminPassword.includes('CHANGE_ME')
+  || adminEmail.endsWith('.local')
+  || adminEmail.endsWith('@example.com')
+  || adminEmail.includes('@example.')
+  || isExampleHostname(appBaseUrl)
+  || isExampleHostname(`https://${smtpHost}`)
+  || isExampleEmail(mailFromAddress)
+)) {
+  throw new Error('Production credentials and service URLs must not use demo or example values.')
+}
+const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS || (production ? 1 : 0))
+if (!Number.isInteger(trustProxyHops) || trustProxyHops < 0 || trustProxyHops > 5) {
+  throw new Error('TRUST_PROXY_HOPS must be a whole number between 0 and 5.')
 }
 if (!Number.isInteger(orderReservationMinutes) || orderReservationMinutes < 1 || orderReservationMinutes > 1440) {
   throw new Error('ORDER_RESERVATION_MINUTES must be a whole number between 1 and 1440.')
@@ -54,6 +85,7 @@ const defaultContactDetails = {
 const database = new Database(databasePath)
 database.pragma('journal_mode = WAL')
 database.pragma('foreign_keys = ON')
+database.pragma('busy_timeout = 5000')
 database.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -104,6 +136,7 @@ database.exec(`
     payment_status TEXT NOT NULL,
     fulfillment_status TEXT NOT NULL DEFAULT 'processing',
     reservation_expires_at INTEGER,
+    checkout_ip TEXT,
     currency_code TEXT NOT NULL DEFAULT 'IDR',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
@@ -164,7 +197,9 @@ database.exec(`
   );
   CREATE INDEX IF NOT EXISTS sessions_expiry_idx ON sessions(expires_at);
   CREATE INDEX IF NOT EXISTS orders_user_idx ON orders(user_id, created_at DESC);
-  CREATE INDEX IF NOT EXISTS orders_reservation_expiry_idx ON orders(payment_status, fulfillment_status, reservation_expires_at);
+  CREATE INDEX IF NOT EXISTS order_items_order_idx ON order_items(order_id);
+  CREATE INDEX IF NOT EXISTS order_items_product_idx ON order_items(product_id);
+  CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id);
   CREATE INDEX IF NOT EXISTS email_verification_user_idx ON email_verification_tokens(user_id);
   CREATE INDEX IF NOT EXISTS email_verification_expiry_idx ON email_verification_tokens(expires_at);
   CREATE INDEX IF NOT EXISTS password_reset_user_idx ON password_reset_tokens(user_id);
@@ -213,6 +248,9 @@ if (!orderColumns.some((column) => column.name === 'reservation_expires_at')) {
       AND fulfillment_status = 'processing'
   `).run(orderReservationMinutes * 60 * 1000)
 }
+if (!orderColumns.some((column) => column.name === 'checkout_ip')) {
+  database.exec('ALTER TABLE orders ADD COLUMN checkout_ip TEXT')
+}
 const orderUserColumn = database.pragma('table_info(orders)').find((column) => column.name === 'user_id')
 if (orderUserColumn?.notnull) {
   database.pragma('foreign_keys = OFF')
@@ -235,17 +273,18 @@ if (orderUserColumn?.notnull) {
           payment_status TEXT NOT NULL,
           fulfillment_status TEXT NOT NULL DEFAULT 'processing',
           reservation_expires_at INTEGER,
+          checkout_ip TEXT,
           currency_code TEXT NOT NULL DEFAULT 'IDR',
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
         INSERT INTO orders_guest_checkout (
           id, order_number, user_id, subtotal, shipping, total, shipping_method,
           shipping_address, shipping_carrier, tracking_number, tracking_url,
-          payment_method, payment_status, fulfillment_status, reservation_expires_at, currency_code, created_at
+          payment_method, payment_status, fulfillment_status, reservation_expires_at, checkout_ip, currency_code, created_at
         )
         SELECT id, order_number, user_id, subtotal, shipping, total, shipping_method,
           shipping_address, shipping_carrier, tracking_number, tracking_url,
-          payment_method, payment_status, fulfillment_status, reservation_expires_at, currency_code, created_at
+          payment_method, payment_status, fulfillment_status, reservation_expires_at, checkout_ip, currency_code, created_at
         FROM orders;
         DROP TABLE orders;
         ALTER TABLE orders_guest_checkout RENAME TO orders;
@@ -257,6 +296,12 @@ if (orderUserColumn?.notnull) {
     database.pragma('foreign_keys = ON')
   }
 }
+database.exec(`
+  CREATE INDEX IF NOT EXISTS orders_reservation_expiry_idx
+    ON orders(payment_status, fulfillment_status, reservation_expires_at);
+  CREATE INDEX IF NOT EXISTS orders_checkout_ip_idx
+    ON orders(checkout_ip, payment_status, fulfillment_status);
+`)
 
 const seedProducts = [
   { id: 1, name: 'Sculpted Wool Blazer', price: 6720000, category: 'Outerwear', color: 'Ivory', material: 'Wool blend', audience: 'women', sizes: ['XS', 'S', 'M', 'L'], gallery: ['https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80'] },
@@ -331,6 +376,7 @@ if ((production || seedDevAdmin) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail
 
 const app = express()
 const sessionDuration = 7 * 24 * 60 * 60 * 1000
+const adminSessionDuration = 8 * 60 * 60 * 1000
 const verificationDuration = 24 * 60 * 60 * 1000
 const passwordResetDuration = 60 * 60 * 1000
 const sessionCookie = 'aureve_session'
@@ -343,7 +389,7 @@ const mailTransport = smtpHost
     ...(smtpUser && smtpPassword ? { auth: { user: smtpUser, pass: smtpPassword } } : {}),
   })
   : null
-app.set('trust proxy', process.env.NODE_ENV === 'production' ? 1 : false)
+app.set('trust proxy', trustProxyHops)
 app.use(express.json({ limit: '32kb' }))
 app.use(cookieParser())
 app.use((request, response, next) => {
@@ -355,8 +401,7 @@ app.use((request, response, next) => {
 })
 const allowedRequestOrigins = new Set([
   appBaseUrl,
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
+  ...(!production ? ['http://localhost:5173', 'http://127.0.0.1:5173'] : []),
   ...(process.env.ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim().replace(/\/+$/, '')).filter(Boolean),
 ].filter(Boolean))
 app.use((request, response, next) => {
@@ -401,6 +446,13 @@ const emailActionLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many email requests. Try again later.' },
 })
+const checkoutLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many checkout attempts. Please wait and try again.' },
+})
 
 const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 const imageUpload = multer({
@@ -424,14 +476,16 @@ const getUserForSession = database.prepare(`
 
 function issueSession(response, userId, cookieName = sessionCookie) {
   const token = randomBytes(32).toString('hex')
-  const expiresAt = Date.now() + sessionDuration
+  const isAdmin = cookieName === adminSessionCookie
+  const duration = isAdmin ? adminSessionDuration : sessionDuration
+  const expiresAt = Date.now() + duration
   database.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)')
     .run(hashToken(token), userId, expiresAt)
   response.cookie(cookieName, token, {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: isAdmin ? 'strict' : 'lax',
     secure: process.env.NODE_ENV === 'production',
-    maxAge: sessionDuration,
+    maxAge: duration,
     path: '/',
   })
 }
@@ -490,6 +544,9 @@ const recordAdminAudit = (request, action, entityType, entityId = null, details 
 
 function expirePendingOrderReservations({ actorEmail = 'system' } = {}) {
   const now = Date.now()
+  cleanExpiredSessions.run(now)
+  database.prepare('DELETE FROM email_verification_tokens WHERE expires_at <= ?').run(now)
+  database.prepare('DELETE FROM password_reset_tokens WHERE expires_at <= ?').run(now)
   const expiredOrders = database.prepare(`
     SELECT id
     FROM orders
@@ -714,7 +771,13 @@ app.patch('/api/admin/settings/contact', requireAdmin, (request, response) => {
 app.get('/api/products', (_request, response) => {
   const rows = database.prepare(`
     SELECT products.*,
-      COALESCE((SELECT SUM(order_items.quantity) FROM order_items WHERE order_items.product_id = products.id), 0) AS units_sold
+      COALESCE((
+        SELECT SUM(order_items.quantity)
+        FROM order_items JOIN orders ON orders.id = order_items.order_id
+        WHERE order_items.product_id = products.id
+          AND orders.fulfillment_status != 'cancelled'
+          AND orders.payment_status != 'expired'
+      ), 0) AS units_sold
     FROM products WHERE products.is_active = 1 ORDER BY products.id
   `).all()
   response.json({ products: rows.map(presentProduct) })
@@ -745,7 +808,9 @@ app.post('/api/auth/register', registrationLimiter, async (request, response, ne
     const password = typeof request.body.password === 'string' ? request.body.password : ''
     if (name.length < 2 || name.length > 80) return response.status(400).json({ error: 'Enter a name between 2 and 80 characters.' })
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return response.status(400).json({ error: 'Enter a valid email address.' })
-    if (password.length < 8 || password.length > 128) return response.status(400).json({ error: 'Password must be at least 8 characters.' })
+    if (password.length < 8 || password.length > 128 || Buffer.byteLength(password, 'utf8') > 72) {
+      return response.status(400).json({ error: 'Password must be 8 to 128 characters and no more than 72 UTF-8 bytes.' })
+    }
 
     const passwordHash = await bcrypt.hash(password, 12)
     const result = database.prepare('INSERT INTO users (name, email, password_hash, email_verified_at) VALUES (?, ?, ?, NULL)')
@@ -816,7 +881,8 @@ app.post('/api/auth/login', customerAuthLimiter, async (request, response, next)
     const email = typeof request.body.email === 'string' ? request.body.email.trim().toLowerCase() : ''
     const password = typeof request.body.password === 'string' ? request.body.password : ''
     const user = database.prepare('SELECT id, name, email, password_hash, role, email_verified_at FROM users WHERE email = ?').get(email)
-    if (!user || user.role !== 'customer' || !(await bcrypt.compare(password, user.password_hash))) {
+    const passwordHash = user?.role === 'customer' ? user.password_hash : dummyPasswordHash
+    if (!(await bcrypt.compare(password, passwordHash))) {
       return response.status(401).json({ error: 'Email or password is incorrect.' })
     }
     if (!user.email_verified_at) {
@@ -856,8 +922,8 @@ app.post('/api/auth/reset-password', emailActionLimiter, async (request, respons
   try {
     const token = typeof request.body.token === 'string' ? request.body.token : ''
     const password = typeof request.body.password === 'string' ? request.body.password : ''
-    if (password.length < 8 || password.length > 128) {
-      return response.status(400).json({ error: 'Password must be between 8 and 128 characters.' })
+    if (password.length < 8 || password.length > 128 || Buffer.byteLength(password, 'utf8') > 72) {
+      return response.status(400).json({ error: 'Password must be 8 to 128 characters and no more than 72 UTF-8 bytes.' })
     }
     if (!/^[a-f0-9]{64}$/.test(token)) return response.status(400).json({ error: 'This reset link is invalid or has expired.' })
     const reset = database.prepare(`
@@ -885,7 +951,8 @@ app.post('/api/admin/auth/login', adminLoginLimiter, async (request, response, n
     const email = typeof request.body.email === 'string' ? request.body.email.trim().toLowerCase() : ''
     const password = typeof request.body.password === 'string' ? request.body.password : ''
     const user = database.prepare('SELECT id, name, email, password_hash, role FROM users WHERE email = ?').get(email)
-    if (!user || user.role !== 'admin' || !(await bcrypt.compare(password, user.password_hash))) {
+    const passwordHash = user?.role === 'admin' ? user.password_hash : dummyPasswordHash
+    if (!(await bcrypt.compare(password, passwordHash))) {
       return response.status(401).json({ error: 'Email or password is incorrect.' })
     }
 
@@ -906,11 +973,11 @@ app.post('/api/auth/logout', (request, response) => {
 app.post('/api/admin/auth/logout', (request, response) => {
   const token = request.cookies[adminSessionCookie]
   if (token) database.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token))
-  response.clearCookie(adminSessionCookie, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/' })
+  response.clearCookie(adminSessionCookie, { httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production', path: '/' })
   response.json({ success: true })
 })
 
-app.post('/api/checkout', (request, response) => {
+app.post('/api/checkout', checkoutLimiter, (request, response) => {
   const token = request.cookies[sessionCookie]
   const sessionUser = token ? getUserForSession.get(hashToken(token), Date.now()) : null
   const checkoutUser = sessionUser?.role === 'customer' ? sessionUser : null
@@ -930,6 +997,8 @@ app.post('/api/checkout', (request, response) => {
   if (!Array.isArray(items) || items.length === 0 || items.length > 20) {
     return response.status(400).json({ error: 'Your bag is empty or contains too many items.' })
   }
+  const requestedQuantity = items.reduce((sum, item) => sum + (typeof item?.quantity === 'number' ? item.quantity : 0), 0)
+  if (requestedQuantity > 20) return response.status(400).json({ error: 'An order can reserve at most 20 units.' })
   if (!['standard', 'express'].includes(shippingMethod)) return response.status(400).json({ error: 'Choose a valid shipping method.' })
   if (paymentMethod !== 'sandbox') return response.status(400).json({ error: 'Only sandbox payment is currently available.' })
 
@@ -949,6 +1018,23 @@ app.post('/api/checkout', (request, response) => {
   const canonicalItems = [...requestedItems].sort((first, second) => first.id - second.id
     || first.size.localeCompare(second.size) || first.quantity - second.quantity)
   const normalizedAddress = Object.fromEntries(addressFields.map((field) => [field, address[field].trim()]))
+  normalizedAddress.email = normalizedAddress.email.toLowerCase()
+  const fieldLimits = { name: 120, email: 254, phone: 32, address: 240, district: 100, city: 100, province: 100, postalCode: 5, country: 60 }
+  if (Object.entries(fieldLimits).some(([field, limit]) => normalizedAddress[field].length > limit)) {
+    return response.status(400).json({ error: 'One or more delivery details are too long.' })
+  }
+  if (!/^\+\d[\d\s().-]{6,30}$/.test(normalizedAddress.phone)) return response.status(400).json({ error: 'Enter a valid phone number with country code.' })
+  if (!/^\d{5}$/.test(normalizedAddress.postalCode)) return response.status(400).json({ error: 'Enter a valid 5-digit postal code.' })
+  if (normalizedAddress.country !== 'Indonesia') return response.status(400).json({ error: 'Only Indonesia delivery is currently supported.' })
+  const activeReservationWhere = `
+    payment_status IN ('sandbox_pending', 'pending')
+    AND fulfillment_status = 'processing'
+    AND (reservation_expires_at IS NULL OR reservation_expires_at > ?)
+  `
+  const reservationLimitParams = [Date.now(), normalizedAddress.email]
+  const pendingForEmail = database.prepare(`SELECT COUNT(*) AS count FROM orders WHERE ${activeReservationWhere} AND lower(json_extract(shipping_address, '$.email')) = ?`).get(...reservationLimitParams).count
+  const pendingForIp = database.prepare(`SELECT COUNT(*) AS count FROM orders WHERE ${activeReservationWhere} AND checkout_ip = ?`).get(Date.now(), request.ip).count
+  if (pendingForEmail >= 3 || pendingForIp >= 3) return response.status(429).json({ error: 'Too many unpaid orders are already reserving stock. Complete or wait for an existing order to expire.' })
   const requestFingerprint = createHash('sha256').update(JSON.stringify({
     userId: checkoutUser?.id ?? null,
     items: canonicalItems,
@@ -1035,9 +1121,9 @@ app.post('/api/checkout', (request, response) => {
     }
     const reservationExpiresAt = Date.now() + (orderReservationMinutes * 60 * 1000)
     const result = database.prepare(`
-      INSERT INTO orders (order_number, user_id, subtotal, shipping, total, shipping_method, shipping_address, payment_method, payment_status, reservation_expires_at, currency_code)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'IDR')
-    `).run(orderNumber, checkoutUser?.id ?? null, subtotal, shipping, total, shippingMethod, JSON.stringify(address), paymentMethod, 'sandbox_pending', reservationExpiresAt)
+      INSERT INTO orders (order_number, user_id, subtotal, shipping, total, shipping_method, shipping_address, payment_method, payment_status, reservation_expires_at, checkout_ip, currency_code)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'IDR')
+    `).run(orderNumber, checkoutUser?.id ?? null, subtotal, shipping, total, shippingMethod, JSON.stringify(normalizedAddress), paymentMethod, 'sandbox_pending', reservationExpiresAt, request.ip)
     const insertItem = database.prepare(`
       INSERT INTO order_items (order_id, product_id, product_name, unit_price, size, quantity)
       VALUES (?, ?, ?, ?, ?, ?)

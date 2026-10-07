@@ -218,6 +218,12 @@ test('email verification, password reset, admin audit log, and database backup w
     body: JSON.stringify(checkoutBody),
   })
   assert.equal(missingIdempotencyKey.response.status, 400)
+  const invalidPostalCode = await request('/api/checkout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': '00000000-0000-4000-8000-000000000004' },
+    body: JSON.stringify({ ...checkoutBody, address: { ...checkoutBody.address, postalCode: '1234' } }),
+  })
+  assert.equal(invalidPostalCode.response.status, 400)
   const checkout = await request('/api/checkout', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Idempotency-Key': firstCheckoutKey },
@@ -476,5 +482,30 @@ test('production refuses to start without required deployment secrets before ope
   })
   assert.notEqual(result.status, 0)
   assert.match(result.stderr, /Production requires valid admin credentials/)
+  assert.equal(existsSync(databasePath), false)
+})
+
+test('production refuses known demo and placeholder deployment values', () => {
+  const databasePath = resolve(testDirectory, 'placeholder-values.sqlite')
+  const result = spawnSync(process.execPath, ['server/index.js'], {
+    cwd: projectDirectory,
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+      DATABASE_PATH: databasePath,
+      API_PORT: '0',
+      ADMIN_EMAIL: 'CHANGE_ME_admin@your-domain.com',
+      ADMIN_PASSWORD: 'CHANGE_ME_use-a-long-random-password',
+      SMTP_HOST: 'CHANGE_ME.smtp-provider.com',
+      SMTP_PORT: '587',
+      SMTP_USER: 'user',
+      SMTP_PASSWORD: 'password',
+      MAIL_FROM: 'AUREVE <no-reply@your-domain.com>',
+      APP_BASE_URL: 'https://CHANGE_ME-your-domain.com',
+    },
+    encoding: 'utf8',
+  })
+  assert.notEqual(result.status, 0)
+  assert.match(result.stderr, /demo or example values/)
   assert.equal(existsSync(databasePath), false)
 })
