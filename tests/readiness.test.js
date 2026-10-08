@@ -188,7 +188,7 @@ test('email verification, password reset, admin audit log, and database backup w
   const setInventory = await request('/api/admin/products/1/inventory', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
-    body: JSON.stringify({ stockBySize: { XS: 0, S: 2, M: 0, L: 0 } }),
+    body: JSON.stringify({ stockBySize: { XS: 0, S: 2, M: 0, L: 0 }, expectedStockBySize: { XS: 0, S: 0, M: 0, L: 0 } }),
   })
   assert.equal(setInventory.response.status, 200)
   assert.equal(setInventory.body.product.stockBySize.S, 2)
@@ -365,7 +365,7 @@ test('expired unpaid orders are cancelled and stock is restored once', async () 
   const seedInventory = await request('/api/admin/products/2/inventory', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Cookie: sharedAdminCookie },
-    body: JSON.stringify({ stockBySize: { S: 0, M: 3, L: 0, XL: 0 } }),
+    body: JSON.stringify({ stockBySize: { S: 0, M: 3, L: 0, XL: 0 }, expectedStockBySize: { S: 0, M: 0, L: 0, XL: 0 } }),
   })
   assert.equal(seedInventory.response.status, 200)
   assert.equal(seedInventory.body.product.stockBySize.M, 3)

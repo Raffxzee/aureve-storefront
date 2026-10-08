@@ -228,7 +228,12 @@ async function requestJSON(url, options = {}) {
     throw new Error('Server returned an invalid response.')
   }
   const result = await response.json()
-  if (!response.ok) throw new Error(result.error || 'The request could not be completed.')
+  if (!response.ok) {
+    const error = new Error(result.error || 'The request could not be completed.')
+    error.status = response.status
+    error.data = result
+    throw error
+  }
   return result
 }
 
@@ -712,13 +717,14 @@ function App() {
     setCmsError('')
     setCmsNotice('')
     try {
+      const expectedStockBySize = Object.fromEntries(product.sizes.map((size) => [size, product.stockBySize?.[size] ?? 0]))
       const stockBySize = Object.fromEntries(product.sizes.map((size) => [
         size,
         Number(inventoryDrafts[product.id]?.[size] ?? product.stockBySize?.[size] ?? 0),
       ]))
       const { product: updatedProduct } = await requestJSON(`/api/admin/products/${product.id}/inventory`, {
         method: 'PATCH',
-        body: JSON.stringify({ stockBySize }),
+        body: JSON.stringify({ stockBySize, expectedStockBySize }),
       })
       setAdminProducts((current) => current.map((item) => item.id === product.id ? updatedProduct : item))
       setProductCatalog((current) => current.map((item) => item.id === product.id ? updatedProduct : item))
@@ -729,6 +735,15 @@ function App() {
       })
       setCmsNotice(`Stock updated for ${product.name}.`)
     } catch (requestError) {
+      if (requestError.status === 409 && requestError.data?.currentStockBySize) {
+        setAdminProducts((current) => current.map((item) => item.id === product.id ? { ...item, stockBySize: requestError.data.currentStockBySize } : item))
+        setProductCatalog((current) => current.map((item) => item.id === product.id ? { ...item, stockBySize: requestError.data.currentStockBySize } : item))
+        setInventoryDrafts((current) => {
+          const next = { ...current }
+          delete next[product.id]
+          return next
+        })
+      }
       setCmsError(requestError.message)
     } finally {
       setCmsSaving(false)

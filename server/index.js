@@ -251,6 +251,13 @@ if (!orderColumns.some((column) => column.name === 'reservation_expires_at')) {
 if (!orderColumns.some((column) => column.name === 'checkout_ip')) {
   database.exec('ALTER TABLE orders ADD COLUMN checkout_ip TEXT')
 }
+if (!orderColumns.some((column) => column.name === 'customer_email')) {
+  database.exec('ALTER TABLE orders ADD COLUMN customer_email TEXT')
+  database.exec(`
+    CREATE INDEX IF NOT EXISTS orders_customer_email_idx
+      ON orders(customer_email, payment_status, fulfillment_status)
+  `)
+}
 const orderUserColumn = database.pragma('table_info(orders)').find((column) => column.name === 'user_id')
 if (orderUserColumn?.notnull) {
   database.pragma('foreign_keys = OFF')
@@ -853,7 +860,7 @@ app.post('/api/auth/verify-email', emailActionLimiter, (request, response) => {
   response.json({ message: 'Email verified. You can now sign in.' })
 })
 
-app.post('/api/auth/resend-verification', emailActionLimiter, async (request, response) => {
+app.post('/api/auth/resend-verification', emailActionLimiter, (request, response) => {
   const email = typeof request.body.email === 'string' ? request.body.email.trim().toLowerCase() : ''
   const user = database.prepare(`
     SELECT id, email FROM users WHERE email = ? AND role = 'customer' AND email_verified_at IS NULL
@@ -861,17 +868,14 @@ app.post('/api/auth/resend-verification', emailActionLimiter, async (request, re
   if (user) {
     const token = createOneTimeToken('email_verification_tokens', user.id, Date.now() + verificationDuration)
     const url = `${appBaseUrl || 'http://localhost:5173'}/?verifyEmail=${token}`
-    try {
-      await sendAuthEmail({
-        to: user.email,
-        subject: 'Verify your AUREVÉ account',
-        text: `Verify your email address within 24 hours: ${url}`,
-        url,
-      })
-    } catch (error) {
+    sendAuthEmail({
+      to: user.email,
+      subject: 'Verify your AUREVÉ account',
+      text: `Verify your email address within 24 hours: ${url}`,
+      url,
+    }).catch((error) => {
       console.error('Verification email delivery failed:', error)
-      return response.status(503).json({ error: 'We could not send the verification email. Please try again later.' })
-    }
+    })
   }
   response.json({ message: 'If the account needs verification, an email has been sent.' })
 })
@@ -896,7 +900,7 @@ app.post('/api/auth/login', customerAuthLimiter, async (request, response, next)
   }
 })
 
-app.post('/api/auth/forgot-password', emailActionLimiter, async (request, response) => {
+app.post('/api/auth/forgot-password', emailActionLimiter, (request, response) => {
   const email = typeof request.body.email === 'string' ? request.body.email.trim().toLowerCase() : ''
   const user = database.prepare(`
     SELECT id, email FROM users WHERE email = ? AND role = 'customer'
@@ -904,16 +908,14 @@ app.post('/api/auth/forgot-password', emailActionLimiter, async (request, respon
   if (user) {
     const token = createOneTimeToken('password_reset_tokens', user.id, Date.now() + passwordResetDuration)
     const url = `${appBaseUrl || 'http://localhost:5173'}/?resetPassword=${token}`
-    try {
-      await sendAuthEmail({
-        to: user.email,
-        subject: 'Reset your AUREVÉ password',
-        text: `Reset your password within one hour: ${url}`,
-        url,
-      })
-    } catch (error) {
+    sendAuthEmail({
+      to: user.email,
+      subject: 'Reset your AUREVÉ password',
+      text: `Reset your password within one hour: ${url}`,
+      url,
+    }).catch((error) => {
       console.error('Password reset email delivery failed:', error)
-    }
+    })
   }
   response.json({ message: 'If an account exists for that email, password reset instructions have been sent.' })
 })
@@ -1031,8 +1033,8 @@ app.post('/api/checkout', checkoutLimiter, (request, response) => {
     AND fulfillment_status = 'processing'
     AND (reservation_expires_at IS NULL OR reservation_expires_at > ?)
   `
-  const reservationLimitParams = [Date.now(), normalizedAddress.email]
-  const pendingForEmail = database.prepare(`SELECT COUNT(*) AS count FROM orders WHERE ${activeReservationWhere} AND lower(json_extract(shipping_address, '$.email')) = ?`).get(...reservationLimitParams).count
+  const reservationLimitParams = [Date.now(), normalizedAddress.email.toLowerCase()]
+  const pendingForEmail = database.prepare(`SELECT COUNT(*) AS count FROM orders WHERE ${activeReservationWhere} AND customer_email = ?`).get(...reservationLimitParams).count
   const pendingForIp = database.prepare(`SELECT COUNT(*) AS count FROM orders WHERE ${activeReservationWhere} AND checkout_ip = ?`).get(Date.now(), request.ip).count
   if (pendingForEmail >= 3 || pendingForIp >= 3) return response.status(429).json({ error: 'Too many unpaid orders are already reserving stock. Complete or wait for an existing order to expire.' })
   const requestFingerprint = createHash('sha256').update(JSON.stringify({
@@ -1121,9 +1123,9 @@ app.post('/api/checkout', checkoutLimiter, (request, response) => {
     }
     const reservationExpiresAt = Date.now() + (orderReservationMinutes * 60 * 1000)
     const result = database.prepare(`
-      INSERT INTO orders (order_number, user_id, subtotal, shipping, total, shipping_method, shipping_address, payment_method, payment_status, reservation_expires_at, checkout_ip, currency_code)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'IDR')
-    `).run(orderNumber, checkoutUser?.id ?? null, subtotal, shipping, total, shippingMethod, JSON.stringify(normalizedAddress), paymentMethod, 'sandbox_pending', reservationExpiresAt, request.ip)
+      INSERT INTO orders (order_number, user_id, subtotal, shipping, total, shipping_method, shipping_address, payment_method, payment_status, reservation_expires_at, checkout_ip, customer_email, currency_code)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'IDR')
+    `).run(orderNumber, checkoutUser?.id ?? null, subtotal, shipping, total, shippingMethod, JSON.stringify(normalizedAddress), paymentMethod, 'sandbox_pending', reservationExpiresAt, request.ip, normalizedAddress.email)
     const insertItem = database.prepare(`
       INSERT INTO order_items (order_id, product_id, product_name, unit_price, size, quantity)
       VALUES (?, ?, ?, ?, ?, ?)
@@ -1234,11 +1236,24 @@ app.patch('/api/admin/products/:id/inventory', requireAdmin, (request, response)
   if (!product) return response.status(404).json({ error: 'Product not found.' })
   const sizes = JSON.parse(product.sizes)
   const stockBySize = request.body.stockBySize
+  const expectedStockBySize = request.body.expectedStockBySize
   if (!stockBySize || typeof stockBySize !== 'object' || Array.isArray(stockBySize)
+    || !expectedStockBySize || typeof expectedStockBySize !== 'object' || Array.isArray(expectedStockBySize)
     || Object.keys(stockBySize).length !== sizes.length
     || sizes.some((size) => !Object.hasOwn(stockBySize, size)
       || !Number.isInteger(stockBySize[size]) || stockBySize[size] < 0 || stockBySize[size] > 100000)) {
     return response.status(400).json({ error: 'Enter a whole-number stock quantity from 0 to 100000 for every available size.' })
+  }
+
+  const currentStock = database.prepare(`
+    SELECT size, quantity FROM product_inventory WHERE product_id = ?
+  `).all(productId)
+  const currentMap = Object.fromEntries(currentStock.map((row) => [row.size, row.quantity]))
+  if (sizes.some((size) => (currentMap[size] ?? 0) !== (expectedStockBySize[size] ?? 0))) {
+    return response.status(409).json({
+      error: 'Stock quantities changed since you started editing. Refresh and try again.',
+      currentStockBySize: currentMap,
+    })
   }
 
   const updateInventory = database.transaction(() => {
@@ -1249,7 +1264,12 @@ app.patch('/api/admin/products/:id/inventory', requireAdmin, (request, response)
     `)
     for (const size of sizes) updateStock.run(productId, size, stockBySize[size])
     database.prepare('UPDATE products SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(productId)
-    recordAdminAudit(request, 'stock_changed', 'product', productId, { stockBySize })
+    const diff = Object.fromEntries(
+      sizes
+        .map((size) => [size, stockBySize[size] - (expectedStockBySize[size] ?? 0)])
+        .filter(([_size, delta]) => delta !== 0),
+    )
+    recordAdminAudit(request, 'stock_adjusted', 'product', productId, { adjustment: diff, from: expectedStockBySize, to: stockBySize })
     return database.prepare('SELECT * FROM products WHERE id = ?').get(productId)
   })
   response.json({ product: presentProduct(updateInventory()) })
