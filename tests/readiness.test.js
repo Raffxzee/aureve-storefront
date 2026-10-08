@@ -460,6 +460,51 @@ test('expired unpaid orders are cancelled and stock is restored once', async () 
   assert.equal(finalProduct.stockBySize.M, 2)
 })
 
+test('admin inventory edits detect concurrent modifications (optimistic concurrency)', async () => {
+  assert.ok(sharedAdminCookie)
+
+  const productId = 3
+  const getProducts = await request('/api/admin/products', { headers: { Cookie: sharedAdminCookie } })
+  assert.equal(getProducts.response.status, 200)
+  const product = getProducts.body.products.find((p) => p.id === productId)
+  assert.ok(product)
+  const initialStock = { ...product.stockBySize }
+
+  // Admin 1 reads stock
+  const admin1Read = initialStock
+
+  // Admin 2 reads stock
+  const admin2Read = initialStock
+
+  // Admin 2 edits and saves first
+  const admin2Update = await request(`/api/admin/products/${productId}/inventory`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Cookie: sharedAdminCookie },
+    body: JSON.stringify({
+      stockBySize: { XS: admin2Read.XS + 5, S: admin2Read.S, M: admin2Read.M, L: admin2Read.L, XL: admin2Read.XL },
+      expectedStockBySize: admin2Read,
+    }),
+  })
+  assert.equal(admin2Update.response.status, 200)
+
+  // Admin 1 tries to edit with stale expected values
+  const admin1Update = await request(`/api/admin/products/${productId}/inventory`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Cookie: sharedAdminCookie },
+    body: JSON.stringify({
+      stockBySize: { XS: admin1Read.XS + 10, S: admin1Read.S, M: admin1Read.M, L: admin1Read.L, XL: admin1Read.XL },
+      expectedStockBySize: admin1Read,
+    }),
+  })
+  assert.equal(admin1Update.response.status, 409)
+  assert.ok(admin1Update.body.error)
+  assert.ok(admin1Update.body.currentStockBySize)
+
+  // Verify the current stock is what admin 2 set it to
+  const currentStock = admin1Update.body.currentStockBySize
+  assert.equal(currentStock.XS, admin2Read.XS + 5)
+})
+
 test('production refuses to start without required deployment secrets before opening the database', () => {
   const databasePath = resolve(testDirectory, 'must-not-be-created.sqlite')
   const result = spawnSync(process.execPath, ['server/index.js'], {
