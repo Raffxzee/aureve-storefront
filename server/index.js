@@ -1267,6 +1267,7 @@ app.patch('/api/admin/products/:id/inventory', requireAdmin, (request, response)
     const diff = Object.fromEntries(
       sizes
         .map((size) => [size, stockBySize[size] - (expectedStockBySize[size] ?? 0)])
+        // eslint-disable-next-line no-unused-vars
         .filter(([_size, delta]) => delta !== 0),
     )
     recordAdminAudit(request, 'stock_adjusted', 'product', productId, { adjustment: diff, from: expectedStockBySize, to: stockBySize })
