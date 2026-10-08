@@ -1080,14 +1080,28 @@ app.post('/api/checkout', checkoutLimiter, (request, response) => {
   if (existingCheckout) return sendExistingCheckout(existingCheckout)
 
   const normalizedItems = []
+  const productIds = [...new Set(requestedItems.map((item) => item.id))]
+  const products = new Map(
+    database.prepare('SELECT * FROM products WHERE id IN (' + productIds.map(() => '?').join(',') + ') AND is_active = 1')
+      .all(...productIds)
+      .map((p) => [p.id, p])
+  )
+  const inventoryRows = database.prepare(
+    'SELECT product_id, size, quantity FROM product_inventory WHERE (product_id, size) IN (' +
+      requestedItems.map(() => '(?, ?)').join(', ') +
+    ')'
+  ).all(...requestedItems.flatMap((item) => [item.id, item.size]))
+  const inventory = new Map(
+    inventoryRows.map((row) => [`${row.product_id}:${row.size}`, row.quantity])
+  )
+
   for (const item of requestedItems) {
-    const productRow = database.prepare('SELECT * FROM products WHERE id = ? AND is_active = 1').get(item.id)
+    const productRow = products.get(item.id)
     if (!productRow || !JSON.parse(productRow.sizes).includes(item.size)) {
       return response.status(400).json({ error: 'One or more items in your bag are invalid.' })
     }
-    const stock = database.prepare('SELECT quantity FROM product_inventory WHERE product_id = ? AND size = ?')
-      .get(productRow.id, item.size)
-    if (!stock || stock.quantity < item.quantity) {
+    const quantity = inventory.get(`${item.id}:${item.size}`) ?? 0
+    if (quantity < item.quantity) {
       return response.status(409).json({ error: `${productRow.name} in size ${item.size} is out of stock or no longer has enough units.` })
     }
     normalizedItems.push({ ...item, product: productRow })
@@ -1135,11 +1149,18 @@ app.post('/api/checkout', checkoutLimiter, (request, response) => {
     }
     database.prepare('INSERT INTO checkout_idempotency (key_hash, request_fingerprint, order_id) VALUES (?, ?, ?)')
       .run(idempotencyKeyHash, requestFingerprint, result.lastInsertRowid)
+    const inventoryAfterReserve = new Map(
+      database.prepare(
+        'SELECT product_id, size, quantity FROM product_inventory WHERE (product_id, size) IN (' +
+          normalizedItems.map(() => '(?, ?)').join(', ') +
+        ')'
+      ).all(...normalizedItems.flatMap((item) => [item.id, item.size]))
+        .map((row) => [`${row.product_id}:${row.size}`, row.quantity])
+    )
     const remainingStock = normalizedItems.map((item) => ({
       productId: item.id,
       size: item.size,
-      quantity: database.prepare('SELECT quantity FROM product_inventory WHERE product_id = ? AND size = ?')
-        .get(item.id, item.size).quantity,
+      quantity: inventoryAfterReserve.get(`${item.id}:${item.size}`) ?? 0,
     }))
     return {
       existingOrder: false,
