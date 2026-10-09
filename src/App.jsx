@@ -182,13 +182,6 @@ const initialProductCatalog = [
 ]
 
 const navItems = ['New In', 'Women', 'Men', 'Accessories', 'Journal']
-const nextFulfillmentStatuses = {
-  processing: ['packed', 'cancelled'],
-  packed: ['shipped', 'cancelled'],
-  shipped: ['delivered'],
-  delivered: [],
-  cancelled: [],
-}
 const initialContactDetails = {
   email: 'clientcare@aureve.example',
   whatsapp: '+62 000 0000 0000',
@@ -209,14 +202,6 @@ const formatPrice = (price, currency = 'IDR') =>
     currency,
     maximumFractionDigits: 0,
   }).format(price)
-
-const createCheckoutIdempotencyKey = () => {
-  if (typeof globalThis.crypto.randomUUID === 'function') return globalThis.crypto.randomUUID()
-  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16))
-  bytes[6] = (bytes[6] & 0x0f) | 0x40
-  bytes[8] = (bytes[8] & 0x3f) | 0x80
-  return [...bytes].map((byte, index) => `${[4, 6, 8, 10].includes(index) ? '-' : ''}${byte.toString(16).padStart(2, '0')}`).join('')
-}
 
 async function requestJSON(url, options = {}) {
   const response = await fetch(url, {
@@ -242,15 +227,18 @@ function ZoomableImage({ src, alt, containerClassName }) {
   const [isHovered, setIsHovered] = useState(false)
 
   const handleMouseMove = (event) => {
-    const bounds = event.currentTarget.getBoundingClientRect()
-    const x = ((event.clientX - bounds.left) / bounds.width) * 100
-    const y = ((event.clientY - bounds.top) / bounds.height) * 100
-    setZoomPos({ x, y })
+    const rect = event.currentTarget.getBoundingClientRect()
+    const x = ((event.clientX - rect.left) / rect.width) * 100
+    const y = ((event.clientY - rect.top) / rect.height) * 100
+    setZoomPos({
+      x: Math.min(100, Math.max(0, x)),
+      y: Math.min(100, Math.max(0, y)),
+    })
   }
 
   return (
     <div
-      className={`${containerClassName} relative overflow-hidden cursor-crosshair`}
+      className={`relative overflow-hidden cursor-crosshair ${containerClassName}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onMouseMove={handleMouseMove}
@@ -258,11 +246,8 @@ function ZoomableImage({ src, alt, containerClassName }) {
       <img
         src={src}
         alt={alt}
-        className="w-full h-full object-cover transition-transform duration-200 ease-out"
-        style={{
-          transformOrigin: `${zoomPos.x}% ${zoomPos.y}%`,
-          transform: isHovered ? 'scale(2.2)' : 'scale(1)',
-        }}
+        style={{ transformOrigin: `${zoomPos.x}% ${zoomPos.y}%`, transform: isHovered ? 'scale(2.2)' : 'scale(1)' }}
+        className="h-full w-full object-cover transition-transform duration-200 ease-out"
       />
     </div>
   )
@@ -275,11 +260,11 @@ function App() {
     setCurrentViewState(nextView)
   }
   const [collectionMode, setCollectionMode] = useState('new')
-  const [productCatalog, setProductCatalog] = useState(() => initialProductCatalog.map((product) => ({ ...product, audience: [2, 3, 4, 5, 6, 12].includes(product.id) ? 'men' : [8, 9, 10, 11].includes(product.id) ? 'unisex' : 'women', isActive: true, stockBySize: Object.fromEntries(product.sizes.map((size) => [size, 0])) })))
+  const [productCatalog, setProductCatalog] = useState(() => initialProductCatalog.map((product) => ({ ...product, audience: [2, 3, 4, 5, 6, 12].includes(product.id) ? 'men' : [8, 9, 10, 11].includes(product.id) ? 'unisex' : 'women', isActive: true })))
   const [articles, setArticles] = useState(initialArticles)
   const [selectedProductId, setSelectedProductId] = useState(1)
   const [selectedArticle, setSelectedArticle] = useState(null)
-  const [selectedSize, setSelectedSize] = useState(() => initialProductCatalog[0]?.sizes[0] || '')
+  const [selectedSize, setSelectedSize] = useState('M')
   const [bag, setBag] = useState([])
   const [cartOpen, setCartOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -300,17 +285,13 @@ function App() {
   const [authMode, setAuthMode] = useState('login')
   const [authForm, setAuthForm] = useState({ name: '', email: '', password: '' })
   const [authError, setAuthError] = useState('')
-  const [authNotice, setAuthNotice] = useState('')
-  const [resetToken, setResetToken] = useState('')
-  const authLinkHandledRef = useRef(false)
   const [authBusy, setAuthBusy] = useState(false)
   const [adminLoginForm, setAdminLoginForm] = useState({ email: '', password: '' })
   const [adminLoginError, setAdminLoginError] = useState('')
   const [adminLoginBusy, setAdminLoginBusy] = useState(false)
-  const [checkoutForm, setCheckoutForm] = useState({ firstName: '', lastName: '', email: '', phone: '', address: '', district: '', city: '', province: '', postalCode: '', country: 'Indonesia' })
+  const [checkoutForm, setCheckoutForm] = useState({ firstName: '', lastName: '', email: '', phone: '', address: '', city: '', postalCode: '', country: 'Indonesia' })
   const [checkoutError, setCheckoutError] = useState('')
   const [checkoutBusy, setCheckoutBusy] = useState(false)
-  const [checkoutIdempotencyKey, setCheckoutIdempotencyKey] = useState(createCheckoutIdempotencyKey)
   const [shippingMethod, setShippingMethod] = useState('standard')
   const [orderNumber, setOrderNumber] = useState('')
   const [completedOrder, setCompletedOrder] = useState(null)
@@ -319,18 +300,8 @@ function App() {
   const [orderHistoryError, setOrderHistoryError] = useState('')
   const [adminTab, setAdminTab] = useState('products')
   const [adminProducts, setAdminProducts] = useState([])
-  const [productSearch, setProductSearch] = useState('')
-  const [productAudienceFilter, setProductAudienceFilter] = useState('all')
-  const [productStockFilter, setProductStockFilter] = useState('all')
-  const [inventoryDrafts, setInventoryDrafts] = useState({})
   const [adminArticles, setAdminArticles] = useState([])
   const [adminOrders, setAdminOrders] = useState([])
-  const [orderSearch, setOrderSearch] = useState('')
-  const [orderStatusFilter, setOrderStatusFilter] = useState('all')
-  const [orderPaymentFilter, setOrderPaymentFilter] = useState('all')
-  const [adminAuditLogs, setAdminAuditLogs] = useState([])
-  const [adminAuditError, setAdminAuditError] = useState('')
-  const [shipmentDrafts, setShipmentDrafts] = useState({})
   const [expandedOrderId, setExpandedOrderId] = useState(null)
   const [cmsLoading, setCmsLoading] = useState(false)
   const [cmsSaving, setCmsSaving] = useState(false)
@@ -345,63 +316,12 @@ function App() {
   const articleFormRef = useRef(null)
   const [contactDetails, setContactDetails] = useState(initialContactDetails)
   const [contactDraft, setContactDraft] = useState(initialContactDetails)
-  const filteredAdminProducts = adminProducts.filter((product) => {
-    const search = productSearch.trim().toLocaleLowerCase()
-    const matchesSearch = !search || `${product.name} ${product.category}`.toLocaleLowerCase().includes(search)
-    const matchesAudience = productAudienceFilter === 'all' || product.audience === productAudienceFilter
-    const hasStock = product.sizes.some((size) => (product.stockBySize?.[size] || 0) > 0)
-    const matchesStock = productStockFilter === 'all'
-      || (productStockFilter === 'in-stock' && hasStock)
-      || (productStockFilter === 'out-of-stock' && !hasStock)
-    return matchesSearch && matchesAudience && matchesStock
-  })
-  const filteredAdminOrders = adminOrders.filter((order) => {
-    const search = orderSearch.trim().toLocaleLowerCase()
-    const matchesSearch = !search || `${order.orderNumber} ${order.customerName} ${order.customerEmail}`.toLocaleLowerCase().includes(search)
-    const matchesStatus = orderStatusFilter === 'all' || order.fulfillmentStatus === orderStatusFilter
-    const matchesPayment = orderPaymentFilter === 'all' || order.paymentStatus === orderPaymentFilter
-    return matchesSearch && matchesStatus && matchesPayment
-  })
 
   useEffect(() => {
     const handleScroll = () => setHeaderSolid(window.scrollY > 12)
     handleScroll()
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
-
-  useEffect(() => {
-    if (authLinkHandledRef.current) return
-    authLinkHandledRef.current = true
-    const url = new URL(window.location.href)
-    const verificationToken = url.searchParams.get('verifyEmail')
-    const passwordToken = url.searchParams.get('resetPassword')
-    if (!verificationToken && !passwordToken) return
-
-    url.searchParams.delete('verifyEmail')
-    url.searchParams.delete('resetPassword')
-    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
-    setAuthOpen(true)
-    setAuthError('')
-    setAuthNotice('')
-    if (passwordToken) {
-      setResetToken(passwordToken)
-      setAuthMode('reset')
-      return
-    }
-
-    setAuthMode('login')
-    fetch('/api/auth/verify-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: verificationToken }),
-    })
-      .then(async (response) => {
-        const result = await response.json()
-        if (!response.ok) throw new Error(result.error || 'Unable to verify your email.')
-        setAuthNotice(result.message)
-      })
-      .catch((requestError) => setAuthError(requestError.message))
   }, [])
 
   useEffect(() => {
@@ -461,16 +381,6 @@ function App() {
   }, [currentView, user])
 
   useEffect(() => {
-    if (currentView !== 'admin' || user?.role !== 'admin' || adminTab !== 'activity') return
-    requestJSON('/api/admin/audit-logs')
-      .then(({ logs }) => {
-        setAdminAuditLogs(logs)
-        setAdminAuditError('')
-      })
-      .catch((requestError) => setAdminAuditError(requestError.message))
-  }, [currentView, user, adminTab])
-
-  useEffect(() => {
     if (currentView !== 'admin' || user?.role !== 'admin') return
     let cancelled = false
     setCmsLoading(true)
@@ -503,19 +413,6 @@ function App() {
       ? productCatalog.filter((product) => product.category === 'Accessories')
       : productCatalog
   const selectedProduct = activeCatalog.find((item) => item.id === selectedProductId) || activeCatalog[0]
-
-  useEffect(() => {
-    const pageTitle = currentView === 'pdp' && selectedProduct
-      ? `${selectedProduct.name} | AUREVÉ`
-      : currentView === 'article' && selectedArticle
-        ? `${selectedArticle.title} | AUREVÉ`
-        : currentView === 'admin'
-          ? 'AUREVÉ | Admin'
-          : currentView === 'plp'
-            ? `${collectionMode === 'new' ? 'New collection' : collectionMode} | AUREVÉ`
-            : 'AUREVÉ | Luxury Fashion'
-    document.title = pageTitle
-  }, [collectionMode, currentView, selectedArticle, selectedProduct])
 
   const activeFilterOptions = ['All', ...new Set(activeCatalog.map((product) => product.category))]
   const filteredProducts = activeCatalog
@@ -576,7 +473,7 @@ function App() {
   const openProduct = (product) => {
     setSelectedProductId(product.id)
     setSelectedImageIndex(0)
-    setSelectedSize(product.sizes.find((size) => (product.stockBySize?.[size] || 0) > 0) || '')
+    setSelectedSize(product.sizes[0] || '')
     setError('')
     setCurrentView('pdp')
   }
@@ -590,56 +487,19 @@ function App() {
   const handleAuthSubmit = async (event) => {
     event.preventDefault()
     setAuthError('')
-    setAuthNotice('')
     setAuthBusy(true)
     try {
-      const endpoint = authMode === 'register' ? 'register'
-        : authMode === 'forgot' ? 'forgot-password'
-          : authMode === 'reset' ? 'reset-password'
-            : 'login'
-      const body = authMode === 'forgot'
-        ? { email: authForm.email }
-        : authMode === 'reset'
-          ? { token: resetToken, password: authForm.password }
-          : authForm
-      const response = await fetch(`/api/auth/${endpoint}`, {
+      const response = await fetch(`/api/auth/${authMode === 'register' ? 'register' : 'login'}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(authForm),
       })
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || 'Unable to sign in.')
-      if (authMode !== 'login') {
-        setAuthNotice(result.message)
-        setAuthMode('login')
-        setAuthForm({ name: '', email: authForm.email, password: '' })
-        setResetToken('')
-        return
-      }
       setUser(result.user)
       setCheckoutForm((form) => ({ ...form, firstName: result.user.name.split(' ')[0], lastName: result.user.name.split(' ').slice(1).join(' '), email: result.user.email }))
       setAuthOpen(false)
       setAuthForm({ name: '', email: '', password: '' })
-    } catch (requestError) {
-      setAuthError(requestError.message)
-    } finally {
-      setAuthBusy(false)
-    }
-  }
-
-  const handleResendVerification = async () => {
-    setAuthError('')
-    setAuthNotice('')
-    setAuthBusy(true)
-    try {
-      const response = await fetch('/api/auth/resend-verification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: authForm.email }),
-      })
-      const result = await response.json()
-      if (!response.ok) throw new Error(result.error || 'Unable to send verification email.')
-      setAuthNotice(result.message)
     } catch (requestError) {
       setAuthError(requestError.message)
     } finally {
@@ -685,9 +545,8 @@ function App() {
   }
 
   const handleAddToBag = () => {
-    const cartQuantity = bag.find((item) => item.id === selectedProduct.id && item.size === selectedSize)?.quantity || 0
-    if (!selectedSize || (selectedProduct.stockBySize?.[selectedSize] || 0) <= cartQuantity) {
-      setError(selectedSize ? 'This size is out of stock.' : 'Please select an in-stock size before adding to bag.')
+    if (!selectedSize) {
+      setError('Please select a size before adding to bag.')
       return
     }
 
@@ -750,6 +609,7 @@ function App() {
     }
   }
 
+
   const advanceCheckout = () => {
     if (checkoutStep === 0) {
       if (!checkoutForm.firstName.trim()) {
@@ -781,14 +641,6 @@ function App() {
         setCheckoutError('City is required')
         return
       }
-      if (!checkoutForm.district.trim()) {
-        setCheckoutError('District is required')
-        return
-      }
-      if (!checkoutForm.province.trim()) {
-        setCheckoutError('Province is required')
-        return
-      }
       if (!checkoutForm.postalCode.trim()) {
         setCheckoutError('Postal code is required')
         return
@@ -808,7 +660,7 @@ function App() {
     try {
       const response = await fetch('/api/checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': checkoutIdempotencyKey },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items: bag.map(({ id, size, quantity }) => ({ id, size, quantity })),
           address: {
@@ -816,9 +668,7 @@ function App() {
             email: checkoutForm.email,
             phone: checkoutForm.phone,
             address: checkoutForm.address,
-            district: checkoutForm.district,
             city: checkoutForm.city,
-            province: checkoutForm.province,
             postalCode: checkoutForm.postalCode,
             country: checkoutForm.country,
           },
@@ -827,26 +677,12 @@ function App() {
         }),
       })
       const result = await response.json()
-      if (!response.ok) {
-        const requestError = new Error(result.error || 'Unable to create your order.')
-        requestError.status = response.status
-        throw requestError
-      }
-      setProductCatalog((current) => current.map((product) => {
-        const stockUpdates = result.remainingStock.filter((item) => item.productId === product.id)
-        if (stockUpdates.length === 0) return product
-        return {
-          ...product,
-          stockBySize: { ...product.stockBySize, ...Object.fromEntries(stockUpdates.map((item) => [item.size, item.quantity])) },
-        }
-      }))
+      if (!response.ok) throw new Error(result.error || 'Unable to create your order.')
       setOrderNumber(result.order.orderNumber)
       setCompletedOrder({ ...result.order, itemCount: bag.reduce((count, item) => count + item.quantity, 0) })
       setShowSuccess(true)
       setBag([])
-      setCheckoutIdempotencyKey(createCheckoutIdempotencyKey())
     } catch (requestError) {
-      if ([400, 409].includes(requestError.status)) setCheckoutIdempotencyKey(createCheckoutIdempotencyKey())
       setCheckoutError(requestError.message)
     } finally {
       setCheckoutBusy(false)
@@ -989,40 +825,6 @@ function App() {
     }
   }
 
-  const saveShipmentTracking = async (order) => {
-    const draft = shipmentDrafts[order.id] || {}
-    setCmsSaving(true)
-    setCmsError('')
-    setCmsNotice('')
-    try {
-      const shipment = {
-        carrier: draft.carrier ?? order.shippingCarrier ?? '',
-        trackingNumber: draft.trackingNumber ?? order.trackingNumber ?? '',
-        trackingUrl: draft.trackingUrl ?? order.trackingUrl ?? '',
-      }
-      await requestJSON(`/api/admin/orders/${order.id}/shipment`, {
-        method: 'PATCH',
-        body: JSON.stringify(shipment),
-      })
-      setAdminOrders((current) => current.map((item) => item.id === order.id ? {
-        ...item,
-        shippingCarrier: shipment.carrier || null,
-        trackingNumber: shipment.trackingNumber || null,
-        trackingUrl: shipment.trackingUrl || null,
-      } : item))
-      setShipmentDrafts((current) => {
-        const next = { ...current }
-        delete next[order.id]
-        return next
-      })
-      setCmsNotice(`Shipment details saved for ${order.orderNumber}.`)
-    } catch (requestError) {
-      setCmsError(requestError.message)
-    } finally {
-      setCmsSaving(false)
-    }
-  }
-
   const setProductValue = (field, value) => setProductDraft((draft) => ({ ...draft, [field]: value }))
   const setArticleValue = (field, value) => setArticleDraft((draft) => ({ ...draft, [field]: value }))
 
@@ -1118,7 +920,7 @@ function App() {
                 {customerOrders.map((order) => {
                   const paymentLabel = order.paymentStatus === 'sandbox_pending'
                     ? 'Pending · demo payment, no charge'
-                    : order.paymentStatus === 'paid' ? 'Paid' : order.paymentStatus === 'expired' ? 'Expired' : order.paymentStatus
+                    : order.paymentStatus === 'paid' ? 'Paid' : order.paymentStatus
                   const fulfillmentLabel = {
                     processing: 'Processing',
                     packed: 'Packed',
@@ -1139,13 +941,6 @@ function App() {
                         <div><p className="nav-label text-[#8A8A86]">Payment</p><p className="mt-1">{paymentLabel}</p></div>
                         <div><p className="nav-label text-[#8A8A86]">Delivery status</p><p className="mt-1">{fulfillmentLabel} · {order.shippingMethod === 'express' ? 'Express' : 'Standard'}</p></div>
                       </div>
-                      {order.trackingNumber && order.trackingUrl && (
-                        <div className="border-b border-[#D8D8D4] py-4 text-sm">
-                          <p className="nav-label text-[#8A8A86]">Shipment tracking</p>
-                          <p className="mt-1">{order.shippingCarrier} · {order.trackingNumber}</p>
-                          <a href={order.trackingUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block underline underline-offset-4">Track this shipment</a>
-                        </div>
-                      )}
                       <div className="divide-y divide-[#E9E9E6]">
                         {order.items.map((item, index) => (
                           <div key={`${item.name}-${item.size}-${index}`} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
@@ -1252,9 +1047,11 @@ function App() {
                 <ProductCard
                   key={product.id}
                   product={product}
-                  canQuickAdd={canQuickAdd(product)}
                   onClick={() => openProduct(product)}
-                  onQuickAdd={() => handleQuickAdd(product)}
+                  onQuickAdd={() => {
+                    addProductToBag(product, product.sizes[0] || 'One Size')
+                    setCartOpen(true)
+                  }}
                 />
               ))}
               </div>
@@ -1298,7 +1095,9 @@ function App() {
                   ))}
                 </div>
                 <div className="md:col-span-2">
-                  <ZoomableImage src={selectedProduct.gallery[selectedImageIndex]} alt={selectedProduct.name} containerClassName="h-[540px] w-full md:h-[760px]" />
+                  <div className="relative overflow-hidden border border-[#D8D8D4] bg-[#F7F7F5]">
+                    <ZoomableImage src={selectedProduct.gallery[selectedImageIndex]} alt={selectedProduct.name} containerClassName="h-[540px] w-full md:h-[760px]" />
+                  </div>
                 </div>
               </div>
 
@@ -1321,11 +1120,11 @@ function App() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between gap-3">
                       <p className="nav-label text-[#686864]">Select size</p>
-                      <span className="text-xs text-[#686864]">{selectedProduct.sizes.filter((size) => (selectedProduct.stockBySize?.[size] || 0) > 0).length} in stock</span>
+                      <span className="text-xs text-[#686864]">{selectedProduct.sizes.length} available</span>
                     </div>
                     <div className={`grid gap-2 ${selectedProduct.sizes.includes('One Size') ? 'grid-cols-1' : 'grid-cols-4'}`}>
                       {(selectedProduct.sizes.includes('One Size') ? selectedProduct.sizes : sizeOptions).map((size) => {
-                        const isDisabled = !selectedProduct.sizes.includes(size) || !(selectedProduct.stockBySize?.[size] > 0)
+                        const isDisabled = !selectedProduct.sizes.includes(size)
                         const active = selectedSize === size
                         return (
                           <button
@@ -1354,11 +1153,10 @@ function App() {
 
                   <button
                     type="button"
-                    disabled={!selectedProduct.sizes.some((size) => (selectedProduct.stockBySize?.[size] || 0) > 0)}
-                    className="w-full border border-black bg-black px-6 py-4 text-[11px] uppercase tracking-[0.26em] text-white transition-colors hover:bg-[#30302E] focus-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    className="w-full border border-black bg-black px-6 py-4 text-[11px] uppercase tracking-[0.26em] text-white transition-colors hover:bg-[#30302E] focus-ring"
                     onClick={handleAddToBag}
                   >
-                    {selectedProduct.sizes.some((size) => (selectedProduct.stockBySize?.[size] || 0) > 0) ? 'Add to bag' : 'Out of stock'}
+                    Add to bag
                   </button>
 
                   <div className="space-y-3 border-t border-[#D8D8D4] pt-4">
@@ -1484,7 +1282,6 @@ function App() {
                 { id: 'articles', label: `Journal (${adminArticles.length})` },
                 { id: 'orders', label: `Orders (${adminOrders.length})` },
                 { id: 'contact', label: 'Contact' },
-                { id: 'activity', label: 'Activity log' },
               ].map((tab) => (
                 <button key={tab.id} type="button" role="tab" aria-selected={adminTab === tab.id} className={`whitespace-nowrap border-b-2 px-5 py-4 text-[10px] uppercase tracking-[0.22em] ${adminTab === tab.id ? 'border-black text-black' : 'border-transparent text-[#8A8A86]'}`} onClick={() => { setAdminTab(tab.id); setCmsError(''); setCmsNotice(''); }}>
                   {tab.label}
@@ -1510,78 +1307,18 @@ function App() {
                           Add product
                         </button>
                       </div>
-                      <div className="mb-4 grid gap-3 sm:grid-cols-3">
-                        <label className="block sm:col-span-1">
-                          <span className="mb-1 block text-[10px] uppercase tracking-[0.16em] text-[#686864]">Search name or category</span>
-                          <input
-                            type="search"
-                            value={productSearch}
-                            onChange={(event) => setProductSearch(event.target.value)}
-                            placeholder="e.g. blazer"
-                            className="w-full border border-[#D8D8D4] bg-white px-3 py-2 text-sm"
-                          />
-                        </label>
-                        <label className="block">
-                          <span className="mb-1 block text-[10px] uppercase tracking-[0.16em] text-[#686864]">Audience</span>
-                          <select value={productAudienceFilter} onChange={(event) => setProductAudienceFilter(event.target.value)} className="w-full border border-[#D8D8D4] bg-white px-3 py-2 text-sm">
-                            <option value="all">All audiences</option>
-                            <option value="women">Women</option>
-                            <option value="men">Men</option>
-                            <option value="unisex">Unisex</option>
-                          </select>
-                        </label>
-                        <label className="block">
-                          <span className="mb-1 block text-[10px] uppercase tracking-[0.16em] text-[#686864]">Stock</span>
-                          <select value={productStockFilter} onChange={(event) => setProductStockFilter(event.target.value)} className="w-full border border-[#D8D8D4] bg-white px-3 py-2 text-sm">
-                            <option value="all">All stock</option>
-                            <option value="in-stock">In stock</option>
-                            <option value="out-of-stock">Out of stock</option>
-                          </select>
-                        </label>
-                      </div>
-                      <p className="mb-2 text-xs text-[#686864]" role="status">
-                        Showing {filteredAdminProducts.length} of {adminProducts.length} products
-                      </p>
                       <div className="divide-y divide-[#D8D8D4]">
-                        {filteredAdminProducts.length === 0 ? (
-                          <p className="border-y border-[#D8D8D4] py-8 text-sm text-[#686864]">No products match these filters.</p>
-                        ) : filteredAdminProducts.map((product) => (
+                        {adminProducts.map((product) => (
                           <div key={product.id} className="flex flex-wrap items-center gap-4 py-4">
                             <img src={product.gallery[0]} alt={product.name} className="h-20 w-16 border border-[#D8D8D4] object-cover" />
                             <div className="min-w-0 flex-1">
-                              <h3 className="text-sm font-medium">{product.name}</h3>
+                              <p className="text-sm font-medium">{product.name}</p>
                               <p className="mt-1 text-xs text-[#8A8A86]">{product.category} · {product.audience} · {formatPrice(product.price)}</p>
                               <p className="mt-1 text-[10px] uppercase tracking-[0.18em]">{product.isActive ? 'Live' : 'Hidden'}</p>
                             </div>
                             <div className="flex gap-2">
                               <button type="button" className="border border-[#D8D8D4] bg-white px-3 py-2 text-[10px] uppercase tracking-[0.15em]" onClick={() => { editProduct(product); productFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>Edit</button>
                               <button type="button" className="border border-[#D8D8D4] bg-white px-3 py-2 text-[10px] uppercase tracking-[0.15em]" onClick={() => toggleProductActive(product)}>{product.isActive ? 'Hide' : 'Publish'}</button>
-                            </div>
-                            <div className="w-full border-t border-[#E9E9E6] pt-3">
-                              <p className="mb-2 text-[10px] uppercase tracking-[0.16em] text-[#686864]">Stock by size · starts at zero</p>
-                              <div className="flex flex-wrap items-end gap-2">
-                                {product.sizes.map((size) => (
-                                  <label key={size} className="block">
-                                    <span className="mb-1 block text-[10px] uppercase tracking-[0.12em] text-[#686864]">{size}</span>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max="100000"
-                                      step="1"
-                                      aria-label={`Stock quantity for ${product.name} size ${size}`}
-                                      value={inventoryDrafts[product.id]?.[size] ?? product.stockBySize?.[size] ?? 0}
-                                      onChange={(event) => setInventoryDrafts((current) => ({
-                                        ...current,
-                                        [product.id]: { ...current[product.id], [size]: event.target.value },
-                                      }))}
-                                      className="w-20 border border-[#D8D8D4] bg-white px-2 py-2 text-sm"
-                                    />
-                                  </label>
-                                ))}
-                                <button type="button" disabled={cmsSaving} className="border border-black bg-black px-4 py-2 text-[10px] uppercase tracking-[0.15em] text-white disabled:opacity-50" onClick={() => saveInventory(product)}>
-                                  Save stock
-                                </button>
-                              </div>
                             </div>
                           </div>
                         ))}
@@ -1664,34 +1401,11 @@ function App() {
                 {adminTab === 'orders' && (
                   <section aria-label="Order management">
                     <div className="mb-4 border-b border-[#D8D8D4] pb-3"><p className="nav-label text-[#8A8A86]">Store operations</p><h2 className="font-display text-4xl">Orders</h2></div>
-                    <div className="mb-4 grid gap-3 border-b border-[#D8D8D4] pb-4 sm:grid-cols-3">
-                      <label className="block">
-                        <span className="mb-1 block text-[10px] uppercase tracking-[0.16em] text-[#686864]">Search order</span>
-                        <input type="search" value={orderSearch} onChange={(event) => setOrderSearch(event.target.value)} placeholder="Order, name, or email" className="w-full border border-[#D8D8D4] bg-white px-3 py-2 text-sm" />
-                      </label>
-                      <label className="block">
-                        <span className="mb-1 block text-[10px] uppercase tracking-[0.16em] text-[#686864]">Fulfillment</span>
-                        <select value={orderStatusFilter} onChange={(event) => setOrderStatusFilter(event.target.value)} className="w-full border border-[#D8D8D4] bg-white px-3 py-2 text-sm">
-                          <option value="all">All fulfillment</option>
-                          {['processing', 'packed', 'shipped', 'delivered', 'cancelled'].map((status) => <option key={status} value={status}>{status[0].toUpperCase() + status.slice(1)}</option>)}
-                        </select>
-                      </label>
-                      <label className="block">
-                        <span className="mb-1 block text-[10px] uppercase tracking-[0.16em] text-[#686864]">Payment</span>
-                        <select value={orderPaymentFilter} onChange={(event) => setOrderPaymentFilter(event.target.value)} className="w-full border border-[#D8D8D4] bg-white px-3 py-2 text-sm">
-                          <option value="all">All payment</option>
-                          <option value="sandbox_pending">Sandbox pending</option>
-                          <option value="paid">Paid</option>
-                          <option value="expired">Expired</option>
-                        </select>
-                      </label>
-                    </div>
-                    <p className="mb-3 text-xs text-[#686864]" role="status">Showing {filteredAdminOrders.length} of {adminOrders.length} orders</p>
-                    {filteredAdminOrders.length === 0 ? <p className="py-10 text-sm text-[#8A8A86]">{adminOrders.length === 0 ? 'No orders yet.' : 'No orders match these filters.'}</p> : (
+                    {adminOrders.length === 0 ? <p className="py-10 text-sm text-[#8A8A86]">No orders yet.</p> : (
                       <div className="overflow-x-auto">
                         <table className="w-full min-w-[760px] border-collapse text-left text-sm">
                           <thead><tr className="border-b border-[#D8D8D4] text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]"><th className="py-3 pr-4">Order</th><th className="py-3 pr-4">Customer</th><th className="py-3 pr-4">Delivery</th><th className="py-3 pr-4">Total</th><th className="py-3">Status</th></tr></thead>
-                          <tbody>{filteredAdminOrders.map((order) => (
+                          <tbody>{adminOrders.map((order) => (
                             <Fragment key={order.id}>
                               <tr key={order.id} className="border-b border-[#D8D8D4] align-top">
                                 <td className="py-4 pr-4">
@@ -1704,7 +1418,7 @@ function App() {
                                 <td className="py-4 pr-4"><p>{order.customerName}</p><p className="mt-1 text-xs text-[#8A8A86]">{order.customerEmail}</p></td>
                                 <td className="py-4 pr-4"><p className="capitalize">{order.shippingMethod}</p><p className="mt-1 text-xs text-[#8A8A86]">{order.shippingAddress.city}, {order.shippingAddress.country}</p></td>
                                 <td className="py-4 pr-4">{formatPrice(order.total, order.currencyCode || 'IDR')}</td>
-                                <td className="py-4"><select aria-label={`Fulfillment status for ${order.orderNumber}`} value={order.fulfillmentStatus} onChange={(event) => updateOrderStatus(order.id, event.target.value)} className="border border-[#D8D8D4] bg-white px-2 py-2 text-xs">{[order.fulfillmentStatus, ...(nextFulfillmentStatuses[order.fulfillmentStatus] || [])].map((status) => <option key={status} value={status} disabled={status === 'shipped' && (!order.trackingNumber || !order.trackingUrl)}>{status[0].toUpperCase() + status.slice(1)}</option>)}</select></td>
+                                <td className="py-4"><select aria-label={`Fulfillment status for ${order.orderNumber}`} value={order.fulfillmentStatus} onChange={(event) => updateOrderStatus(order.id, event.target.value)} className="border border-[#D8D8D4] bg-white px-2 py-2 text-xs"><option value="processing">Processing</option><option value="packed">Packed</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option></select></td>
                               </tr>
                               {expandedOrderId === order.id && (
                                 <tr key={`${order.id}-details`} className="border-b border-[#D8D8D4]">
@@ -1715,7 +1429,7 @@ function App() {
                                         <p className="text-sm font-medium">{order.shippingAddress.name}</p>
                                         <p className="mt-1 text-sm">{order.shippingAddress.email}</p>
                                         <p className="mt-1 text-sm">{order.shippingAddress.phone}</p>
-                                        <p className="mt-3 text-sm leading-relaxed text-[#686864]">{order.shippingAddress.address}<br />{order.shippingAddress.district ? `${order.shippingAddress.district}, ` : ''}{order.shippingAddress.city}<br />{order.shippingAddress.province ? `${order.shippingAddress.province}, ` : ''}{order.shippingAddress.postalCode}<br />{order.shippingAddress.country}</p>
+                                        <p className="mt-3 text-sm leading-relaxed text-[#686864]">{order.shippingAddress.address}<br />{order.shippingAddress.city}, {order.shippingAddress.postalCode}<br />{order.shippingAddress.country}</p>
                                         <p className="mt-3 text-xs text-[#686864]">Placed {new Date(order.createdAt).toLocaleString('id-ID')}</p>
                                       </section>
                                       <section aria-label="Order items">
@@ -1738,15 +1452,6 @@ function App() {
                                           <div className="flex justify-between gap-4"><span className="text-[#686864]">Shipping</span><span>{order.shipping === 0 ? 'Free' : formatPrice(order.shipping, order.currencyCode || 'IDR')}</span></div>
                                           <div className="flex justify-between gap-4 border-t border-[#D8D8D4] pt-2 font-medium"><span>Total</span><span>{formatPrice(order.total, order.currencyCode || 'IDR')}</span></div>
                                         </div>
-                                      </section>
-                                      <section aria-label="Shipment tracking details" className="border-t border-[#D8D8D4] pt-4 md:col-span-3">
-                                        <p className="nav-label mb-3 text-[#686864]">Manual shipment tracking</p>
-                                        <div className="grid gap-3 sm:grid-cols-3">
-                                          <label className="block"><span className="mb-1 block text-[10px] uppercase tracking-[0.14em] text-[#686864]">Carrier</span><input value={shipmentDrafts[order.id]?.carrier ?? order.shippingCarrier ?? ''} onChange={(event) => setShipmentDrafts((current) => ({ ...current, [order.id]: { ...current[order.id], carrier: event.target.value } }))} className="w-full border border-[#D8D8D4] bg-white px-3 py-2 text-sm" placeholder="Courier name" /></label>
-                                          <label className="block"><span className="mb-1 block text-[10px] uppercase tracking-[0.14em] text-[#686864]">Tracking number</span><input value={shipmentDrafts[order.id]?.trackingNumber ?? order.trackingNumber ?? ''} onChange={(event) => setShipmentDrafts((current) => ({ ...current, [order.id]: { ...current[order.id], trackingNumber: event.target.value } }))} className="w-full border border-[#D8D8D4] bg-white px-3 py-2 text-sm" placeholder="Tracking number" /></label>
-                                          <label className="block"><span className="mb-1 block text-[10px] uppercase tracking-[0.14em] text-[#686864]">HTTPS tracking URL</span><input type="url" value={shipmentDrafts[order.id]?.trackingUrl ?? order.trackingUrl ?? ''} onChange={(event) => setShipmentDrafts((current) => ({ ...current, [order.id]: { ...current[order.id], trackingUrl: event.target.value } }))} className="w-full border border-[#D8D8D4] bg-white px-3 py-2 text-sm" placeholder="https://…" /></label>
-                                        </div>
-                                        <button type="button" disabled={cmsSaving} className="mt-3 border border-black bg-black px-4 py-3 text-[10px] uppercase tracking-[0.18em] text-white disabled:opacity-50" onClick={() => saveShipmentTracking(order)}>Save tracking details</button>
                                       </section>
                                     </div>
                                   </td>
@@ -1778,33 +1483,6 @@ function App() {
                         {cmsSaving ? 'Saving' : 'Save contact details'}
                       </button>
                     </form>
-                  </section>
-                )}
-
-                {adminTab === 'activity' && (
-                  <section aria-label="Administrator activity log">
-                    <div className="mb-4 border-b border-[#D8D8D4] pb-3">
-                      <p className="nav-label text-[#8A8A86]">Security & operations</p>
-                      <h2 className="font-display text-4xl">Recent admin activity</h2>
-                    </div>
-                    {adminAuditError ? <p role="alert" className="text-sm text-[#B3261E]">{adminAuditError}</p> : adminAuditLogs.length === 0 ? (
-                      <p className="py-8 text-sm text-[#8A8A86]">No activity has been recorded yet.</p>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full min-w-[700px] border-collapse text-left text-sm">
-                          <thead><tr className="border-b border-[#D8D8D4] text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]"><th className="py-3 pr-4">When</th><th className="py-3 pr-4">Administrator</th><th className="py-3 pr-4">Action</th><th className="py-3 pr-4">Record</th><th className="py-3">Details</th></tr></thead>
-                          <tbody>{adminAuditLogs.map((log) => (
-                            <tr key={log.id} className="border-b border-[#D8D8D4] align-top">
-                              <td className="py-3 pr-4 whitespace-nowrap">{new Date(`${log.createdAt}Z`).toLocaleString('id-ID')}</td>
-                              <td className="py-3 pr-4">{log.actorEmail}</td>
-                              <td className="py-3 pr-4 capitalize">{log.action.replaceAll('_', ' ')}</td>
-                              <td className="py-3 pr-4 capitalize">{log.entityType}{log.entityId ? ` · ${log.entityId}` : ''}</td>
-                              <td className="py-3 text-xs text-[#686864]">{Object.entries(log.details).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`).join(' · ') || '—'}</td>
-                            </tr>
-                          ))}</tbody>
-                        </table>
-                      </div>
-                    )}
                   </section>
                 )}
               </>
@@ -1880,9 +1558,7 @@ function App() {
                           </div>
                           <div className="grid gap-5 md:grid-cols-2">
                             <div className="md:col-span-2"><InputField label="Address" value={checkoutForm.address} onChange={(value) => setCheckoutForm((form) => ({ ...form, address: value }))} required /></div>
-                            <InputField label="District / Kecamatan" value={checkoutForm.district} onChange={(value) => setCheckoutForm((form) => ({ ...form, district: value }))} required />
                             <InputField label="City" value={checkoutForm.city} onChange={(value) => setCheckoutForm((form) => ({ ...form, city: value }))} required />
-                            <InputField label="Province" value={checkoutForm.province} onChange={(value) => setCheckoutForm((form) => ({ ...form, province: value }))} required />
                             <InputField label="Postal code" value={checkoutForm.postalCode} onChange={(value) => setCheckoutForm((form) => ({ ...form, postalCode: value }))} required />
                             <div className="md:col-span-2"><InputField label="Country" value={checkoutForm.country} onChange={(value) => setCheckoutForm((form) => ({ ...form, country: value }))} required /></div>
                             <div className="space-y-3 md:col-span-2">
@@ -1942,7 +1618,7 @@ function App() {
                     {bag.map((item) => (
                       <div key={`${item.id}-${item.size}`} className="flex gap-4 border-b border-[#D8D8D4] pb-4">
                         <div className="h-20 w-16 overflow-hidden border border-[#D8D8D4] bg-white">
-                          <img src={productCatalog.find((product) => product.id === item.id)?.gallery[0] || '/placeholder.png'} alt={item.name} className="h-full w-full object-cover" />
+                          <img src={productCatalog.find((product) => product.id === item.id)?.gallery[0]} alt={item.name} className="h-full w-full object-cover" />
                         </div>
                         <div className="flex w-full flex-col justify-between">
                           <div className="flex items-start justify-between gap-2">
@@ -2006,9 +1682,11 @@ function App() {
               <ProductCard
                 key={product.id}
                 product={product}
-                canQuickAdd={canQuickAdd(product)}
                 onClick={() => openProduct(product)}
-                onQuickAdd={() => handleQuickAdd(product)}
+                onQuickAdd={() => {
+                  addProductToBag(product, product.sizes[0] || 'One Size')
+                  setCartOpen(true)
+                }}
               />
             ))}
           </div>
@@ -2258,7 +1936,7 @@ function App() {
               <div className="mb-6 flex items-center justify-between">
                 <div>
                   <p className="nav-label text-[#8A8A86]">Account</p>
-                  <h3 className="font-display text-4xl">{user ? 'Your account' : authMode === 'register' ? 'Create account' : authMode === 'forgot' ? 'Reset password' : authMode === 'reset' ? 'Choose a new password' : 'Welcome back'}</h3>
+                  <h3 className="font-display text-4xl">{user ? 'Your account' : authMode === 'register' ? 'Create account' : 'Welcome back'}</h3>
                 </div>
                 <button type="button" className="flex h-10 w-10 items-center justify-center border border-[#D8D8D4] bg-white" onClick={() => setAuthOpen(false)}>
                   <X className="h-4 w-4" />
@@ -2278,35 +1956,19 @@ function App() {
                 </div>
               ) : (
                 <form className="space-y-5" onSubmit={handleAuthSubmit}>
-                  {authNotice && <p role="status" className="border border-[#D8D8D4] bg-white px-4 py-3 text-sm">{authNotice}</p>}
                   <div className="space-y-4">
                     {authMode === 'register' && (
                       <InputField label="Full name" value={authForm.name} onChange={(value) => setAuthForm((form) => ({ ...form, name: value }))} required autoComplete="name" />
                     )}
-                    {authMode !== 'reset' && <InputField label="Email address" type="email" value={authForm.email} onChange={(value) => setAuthForm((form) => ({ ...form, email: value }))} required autoComplete="email" />}
-                    {authMode !== 'forgot' && <InputField label={authMode === 'reset' ? 'New password' : 'Password'} type="password" value={authForm.password} onChange={(value) => setAuthForm((form) => ({ ...form, password: value }))} required autoComplete={authMode === 'register' || authMode === 'reset' ? 'new-password' : 'current-password'} />}
+                    <InputField label="Email address" type="email" value={authForm.email} onChange={(value) => setAuthForm((form) => ({ ...form, email: value }))} required autoComplete="email" />
+                    <InputField label="Password" type="password" value={authForm.password} onChange={(value) => setAuthForm((form) => ({ ...form, password: value }))} required autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} />
                   </div>
                   {authError && <p role="alert" className="text-sm text-[#B3261E]">{authError}</p>}
                   <button type="submit" disabled={authBusy} className="w-full border border-black bg-black px-5 py-4 text-[10px] uppercase tracking-[0.24em] text-white disabled:opacity-50">
-                    {authBusy ? 'Please wait' : authMode === 'register' ? 'Create account' : authMode === 'forgot' ? 'Send reset link' : authMode === 'reset' ? 'Update password' : 'Sign in'}
+                    {authBusy ? 'Please wait' : authMode === 'register' ? 'Create account' : 'Sign in'}
                   </button>
-                  {authMode === 'login' && (
-                    <>
-                      <button type="button" className="w-full py-2 text-[10px] uppercase tracking-[0.2em] text-[#8A8A86]" onClick={() => { setAuthMode('forgot'); setAuthError(''); setAuthNotice(''); }}>
-                        Forgot your password?
-                      </button>
-                      <button type="button" disabled={authBusy} className="w-full py-2 text-[10px] uppercase tracking-[0.2em] text-[#8A8A86] disabled:opacity-50" onClick={handleResendVerification}>
-                        Resend verification email
-                      </button>
-                    </>
-                  )}
-                  <button type="button" className="w-full py-2 text-[10px] uppercase tracking-[0.2em] text-[#8A8A86]" onClick={() => {
-                    setAuthMode(authMode === 'register' ? 'login' : 'register')
-                    setAuthError('')
-                    setAuthNotice('')
-                    setAuthForm((form) => ({ ...form, password: '' }))
-                  }}>
-                    {authMode === 'register' ? 'Already have an account? Sign in' : authMode === 'login' ? 'New to AUREVÉ? Create an account' : 'Back to sign in'}
+                  <button type="button" className="w-full py-2 text-[10px] uppercase tracking-[0.2em] text-[#8A8A86]" onClick={() => { setAuthMode(authMode === 'register' ? 'login' : 'register'); setAuthError(''); }}>
+                    {authMode === 'register' ? 'Already have an account? Sign in' : 'New to AUREVÉ? Create an account'}
                   </button>
                 </form>
               )}
@@ -2421,13 +2083,7 @@ function App() {
                               <Minus className="h-3 w-3" />
                             </button>
                             <span className="min-w-6 text-center text-xs">{item.quantity}</span>
-                            <button
-                              type="button"
-                              disabled={item.quantity >= (productCatalog.find((product) => product.id === item.id)?.stockBySize?.[item.size] || 0)}
-                              className="flex h-8 w-8 items-center justify-center disabled:cursor-not-allowed disabled:opacity-40"
-                              aria-label={`Increase quantity of ${item.name}`}
-                              onClick={() => setBag((current) => current.map((bagItem) => bagItem.id === item.id && bagItem.size === item.size ? { ...bagItem, quantity: bagItem.quantity + 1 } : bagItem))}
-                            >
+                            <button type="button" className="flex h-8 w-8 items-center justify-center" aria-label={`Increase quantity of ${item.name}`} onClick={() => setBag((current) => current.map((bagItem) => bagItem.id === item.id && bagItem.size === item.size ? { ...bagItem, quantity: bagItem.quantity + 1 } : bagItem))}>
                               <Plus className="h-3 w-3" />
                             </button>
                           </div>
@@ -2453,7 +2109,7 @@ function App() {
   )
 }
 
-function ProductCard({ product, canQuickAdd, onClick, onQuickAdd }) {
+function ProductCard({ product, onClick, onQuickAdd }) {
   const [imageLoaded, setImageLoaded] = useState(false)
 
   return (
@@ -2464,13 +2120,8 @@ function ProductCard({ product, canQuickAdd, onClick, onQuickAdd }) {
           <img src={product.gallery[0]} alt={product.name} className={`h-[360px] w-full object-cover transition duration-700 ease-out group-hover:scale-110 group-hover:brightness-[0.98] ${imageLoaded ? 'opacity-100' : 'opacity-0'}`} onLoad={() => setImageLoaded(true)} />
         </button>
         <div className="absolute inset-x-0 bottom-0 flex translate-y-full items-center justify-center bg-black/40 p-3 text-white opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100 md:group-hover:flex">
-          <button
-            type="button"
-            disabled={!canQuickAdd}
-            className="flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] disabled:cursor-not-allowed"
-            onClick={(event) => { event.preventDefault(); event.stopPropagation(); onQuickAdd(); }}
-          >
-            {canQuickAdd ? <>Quick add <ArrowRight className="h-3 w-3" /></> : 'Out of stock'}
+          <button type="button" className="flex items-center gap-2 text-[10px] uppercase tracking-[0.24em]" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onQuickAdd(); }}>
+            Quick add <ArrowRight className="h-3 w-3" />
           </button>
         </div>
       </div>
@@ -2484,7 +2135,7 @@ function ProductCard({ product, canQuickAdd, onClick, onQuickAdd }) {
             </button>
           </div>
           <button type="button" className="flex h-9 w-9 shrink-0 items-center justify-center border border-[#D8D8D4] bg-white" aria-label={`Save ${product.name}`}>
-            <Heart className="h-4 w-4" />
+            <Heart className="h-4 w-4 shrink-0" />
           </button>
         </div>
         <div className="flex items-center justify-between">
