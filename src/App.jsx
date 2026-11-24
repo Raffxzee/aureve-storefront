@@ -269,6 +269,7 @@ function App() {
   const [cartOpen, setCartOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [wishlist, setWishlist] = useState([])
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -314,6 +315,7 @@ function App() {
   const [articleDraft, setArticleDraft] = useState({ category: '', title: '', image: '', alt: '', excerpt: '', body: '', status: 'draft' })
   const productFormRef = useRef(null)
   const articleFormRef = useRef(null)
+  const checkoutIdempotencyRef = useRef({ key: '', fingerprint: '' })
   const [contactDetails, setContactDetails] = useState(initialContactDetails)
   const [contactDraft, setContactDraft] = useState(initialContactDetails)
 
@@ -359,6 +361,16 @@ function App() {
       setContactDraft(contact)
     }).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    setBag((current) => current.flatMap((item) => {
+      const product = productCatalog.find((candidate) => candidate.id === item.id)
+      if (!product || !product.isActive || !product.sizes.includes(item.size)) return []
+      const available = product.stockBySize?.[item.size] ?? 0
+      if (available <= 0) return []
+      return [{ ...item, quantity: Math.min(item.quantity, available), price: product.price }]
+    }))
+  }, [productCatalog])
 
   useEffect(() => {
     if (currentView !== 'orders' || !user) return
@@ -535,24 +547,32 @@ function App() {
   }
 
   const addProductToBag = (product, size) => {
+    const available = product.stockBySize?.[size] ?? 0
+    if (available <= 0) {
+      setError('This size is currently out of stock.')
+      return false
+    }
     setBag((current) => {
       const existing = current.find((item) => item.id === product.id && item.size === size)
       if (existing) {
+        if (existing.quantity >= available) return current
         return current.map((item) => item.id === product.id && item.size === size ? { ...item, quantity: item.quantity + 1 } : item)
       }
       return [...current, { id: product.id, name: product.name, price: product.price, size, quantity: 1 }]
     })
+    return true
   }
 
   const handleAddToBag = () => {
-    if (!selectedSize) {
-      setError('Please select a size before adding to bag.')
+    if (!selectedSize || !selectedProduct.sizes.includes(selectedSize)) {
+      setError('Please select an available size before adding to bag.')
       return
     }
 
-    addProductToBag(selectedProduct, selectedSize)
-    setCartOpen(true)
-    setError('')
+    if (addProductToBag(selectedProduct, selectedSize)) {
+      setCartOpen(true)
+      setError('')
+    }
     setSelectedSize(selectedProduct.sizes[0] || '')
   }
 
@@ -564,49 +584,6 @@ function App() {
     if (!size) return
     addProductToBag(product, size)
     setCartOpen(true)
-  }
-
-  const canQuickAdd = (product) => product.sizes.some((size) => {
-    const cartQuantity = bag.find((item) => item.id === product.id && item.size === size)?.quantity || 0
-    return (product.stockBySize?.[size] || 0) > cartQuantity
-  })
-
-  const saveInventory = async (product) => {
-    setCmsSaving(true)
-    setCmsError('')
-    setCmsNotice('')
-    try {
-      const expectedStockBySize = Object.fromEntries(product.sizes.map((size) => [size, product.stockBySize?.[size] ?? 0]))
-      const stockBySize = Object.fromEntries(product.sizes.map((size) => [
-        size,
-        Number(inventoryDrafts[product.id]?.[size] ?? product.stockBySize?.[size] ?? 0),
-      ]))
-      const { product: updatedProduct } = await requestJSON(`/api/admin/products/${product.id}/inventory`, {
-        method: 'PATCH',
-        body: JSON.stringify({ stockBySize, expectedStockBySize }),
-      })
-      setAdminProducts((current) => current.map((item) => item.id === product.id ? updatedProduct : item))
-      setProductCatalog((current) => current.map((item) => item.id === product.id ? updatedProduct : item))
-      setInventoryDrafts((current) => {
-        const next = { ...current }
-        delete next[product.id]
-        return next
-      })
-      setCmsNotice(`Stock updated for ${product.name}.`)
-    } catch (requestError) {
-      if (requestError.status === 409 && requestError.data?.currentStockBySize) {
-        setAdminProducts((current) => current.map((item) => item.id === product.id ? { ...item, stockBySize: requestError.data.currentStockBySize } : item))
-        setProductCatalog((current) => current.map((item) => item.id === product.id ? { ...item, stockBySize: requestError.data.currentStockBySize } : item))
-        setInventoryDrafts((current) => {
-          const next = { ...current }
-          delete next[product.id]
-          return next
-        })
-      }
-      setCmsError(requestError.message)
-    } finally {
-      setCmsSaving(false)
-    }
   }
 
 
@@ -655,12 +632,44 @@ function App() {
   }
 
   const handlePlaceOrder = async () => {
+    if (bag.length === 0) {
+      setCheckoutError('Your bag is empty.')
+      return
+    }
     setCheckoutBusy(true)
     setCheckoutError('')
     try {
+      const requestFingerprint = JSON.stringify({
+        items: bag.map(({ id, size, quantity }) => ({ id, size, quantity })),
+        address: {
+          name: `${checkoutForm.firstName} ${checkoutForm.lastName}`.trim(),
+          email: checkoutForm.email,
+          phone: checkoutForm.phone,
+          address: checkoutForm.address,
+          city: checkoutForm.city,
+          postalCode: checkoutForm.postalCode,
+          country: checkoutForm.country,
+        },
+        shippingMethod,
+        paymentMethod: 'sandbox',
+      })
+      if (checkoutIdempotencyRef.current.fingerprint !== requestFingerprint) {
+        checkoutIdempotencyRef.current = {
+          key: globalThis.crypto?.randomUUID?.()
+            || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+              const random = Math.floor(Math.random() * 16)
+              const value = character === 'x' ? random : (random & 0x3) | 0x8
+              return value.toString(16)
+            }),
+          fingerprint: requestFingerprint,
+        }
+      }
       const response = await fetch('/api/checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': checkoutIdempotencyRef.current.key,
+        },
         body: JSON.stringify({
           items: bag.map(({ id, size, quantity }) => ({ id, size, quantity })),
           address: {
@@ -682,6 +691,7 @@ function App() {
       setCompletedOrder({ ...result.order, itemCount: bag.reduce((count, item) => count + item.quantity, 0) })
       setShowSuccess(true)
       setBag([])
+      checkoutIdempotencyRef.current = { key: '', fingerprint: '' }
     } catch (requestError) {
       setCheckoutError(requestError.message)
     } finally {
@@ -1047,11 +1057,12 @@ function App() {
                 <ProductCard
                   key={product.id}
                   product={product}
+                  isSaved={wishlist.includes(product.id)}
+                  onToggleSaved={() => setWishlist((current) => current.includes(product.id)
+                    ? current.filter((id) => id !== product.id)
+                    : [...current, product.id])}
                   onClick={() => openProduct(product)}
-                  onQuickAdd={() => {
-                    addProductToBag(product, product.sizes[0] || 'One Size')
-                    setCartOpen(true)
-                  }}
+                  onQuickAdd={() => handleQuickAdd(product)}
                 />
               ))}
               </div>
@@ -1125,6 +1136,7 @@ function App() {
                     <div className={`grid gap-2 ${selectedProduct.sizes.includes('One Size') ? 'grid-cols-1' : 'grid-cols-4'}`}>
                       {(selectedProduct.sizes.includes('One Size') ? selectedProduct.sizes : sizeOptions).map((size) => {
                         const isDisabled = !selectedProduct.sizes.includes(size)
+                          || (selectedProduct.stockBySize?.[size] ?? 0) <= 0
                         const active = selectedSize === size
                         return (
                           <button
@@ -1682,11 +1694,12 @@ function App() {
               <ProductCard
                 key={product.id}
                 product={product}
+                isSaved={wishlist.includes(product.id)}
+                onToggleSaved={() => setWishlist((current) => current.includes(product.id)
+                  ? current.filter((id) => id !== product.id)
+                  : [...current, product.id])}
                 onClick={() => openProduct(product)}
-                onQuickAdd={() => {
-                  addProductToBag(product, product.sizes[0] || 'One Size')
-                  setCartOpen(true)
-                }}
+                onQuickAdd={() => handleQuickAdd(product)}
               />
             ))}
           </div>
@@ -2083,7 +2096,17 @@ function App() {
                               <Minus className="h-3 w-3" />
                             </button>
                             <span className="min-w-6 text-center text-xs">{item.quantity}</span>
-                            <button type="button" className="flex h-8 w-8 items-center justify-center" aria-label={`Increase quantity of ${item.name}`} onClick={() => setBag((current) => current.map((bagItem) => bagItem.id === item.id && bagItem.size === item.size ? { ...bagItem, quantity: bagItem.quantity + 1 } : bagItem))}>
+                            <button
+                              type="button"
+                              className="flex h-8 w-8 items-center justify-center disabled:cursor-not-allowed disabled:opacity-30"
+                              disabled={(productCatalog.find((product) => product.id === item.id)?.stockBySize?.[item.size] ?? 0) <= item.quantity}
+                              aria-label={`Increase quantity of ${item.name}`}
+                              onClick={() => setBag((current) => current.map((bagItem) => {
+                                if (bagItem.id !== item.id || bagItem.size !== item.size) return bagItem
+                                const available = productCatalog.find((product) => product.id === item.id)?.stockBySize?.[item.size] ?? 0
+                                return bagItem.quantity < available ? { ...bagItem, quantity: bagItem.quantity + 1 } : bagItem
+                              }))}
+                            >
                               <Plus className="h-3 w-3" />
                             </button>
                           </div>
@@ -2109,7 +2132,7 @@ function App() {
   )
 }
 
-function ProductCard({ product, onClick, onQuickAdd }) {
+function ProductCard({ product, onClick, onQuickAdd, isSaved = false, onToggleSaved }) {
   const [imageLoaded, setImageLoaded] = useState(false)
 
   return (
@@ -2134,8 +2157,8 @@ function ProductCard({ product, onClick, onQuickAdd }) {
               {product.name}
             </button>
           </div>
-          <button type="button" className="flex h-9 w-9 shrink-0 items-center justify-center border border-[#D8D8D4] bg-white" aria-label={`Save ${product.name}`}>
-            <Heart className="h-4 w-4 shrink-0" />
+          <button type="button" className="flex h-9 w-9 shrink-0 items-center justify-center border border-[#D8D8D4] bg-white" aria-label={`${isSaved ? 'Remove' : 'Save'} ${product.name}`} aria-pressed={isSaved} onClick={onToggleSaved}>
+            <Heart className={`h-4 w-4 shrink-0 ${isSaved ? 'fill-black' : ''}`} />
           </button>
         </div>
         <div className="flex items-center justify-between">
