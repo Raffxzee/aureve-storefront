@@ -303,6 +303,11 @@ function App() {
   const [adminProducts, setAdminProducts] = useState([])
   const [adminArticles, setAdminArticles] = useState([])
   const [adminOrders, setAdminOrders] = useState([])
+  const [adminAuditLogs, setAdminAuditLogs] = useState([])
+  const [inventoryDraft, setInventoryDraft] = useState({})
+  const [shipmentDraft, setShipmentDraft] = useState({})
+  const [adminProductQuery, setAdminProductQuery] = useState('')
+  const [adminOrderQuery, setAdminOrderQuery] = useState('')
   const [expandedOrderId, setExpandedOrderId] = useState(null)
   const [cmsLoading, setCmsLoading] = useState(false)
   const [cmsSaving, setCmsSaving] = useState(false)
@@ -400,12 +405,14 @@ function App() {
       requestJSON('/api/admin/products'),
       requestJSON('/api/admin/articles'),
       requestJSON('/api/admin/orders'),
+      requestJSON('/api/admin/audit-logs?limit=100'),
     ])
-      .then(([{ products }, { articles: cmsArticles }, { orders }]) => {
+      .then(([{ products }, { articles: cmsArticles }, { orders }, { logs }]) => {
         if (cancelled) return
         setAdminProducts(products)
         setAdminArticles(cmsArticles)
         setAdminOrders(orders)
+        setAdminAuditLogs(logs)
         setCmsError('')
       })
       .catch((requestError) => {
@@ -766,6 +773,22 @@ function App() {
     }
   }
 
+  const deleteProduct = async (product) => {
+    if (!window.confirm(`Permanently delete "${product.name}"? This cannot be undone.`)) return
+    setCmsError('')
+    setCmsNotice('')
+    try {
+      await requestJSON(`/api/admin/products/${product.id}`, { method: 'DELETE' })
+      setAdminProducts((current) => current.filter((item) => item.id !== product.id))
+      const { products } = await requestJSON('/api/products')
+      setProductCatalog(products)
+      setCmsNotice(`Product "${product.name}" deleted.`)
+      if (editingProductId === product.id) resetProductDraft()
+    } catch (requestError) {
+      setCmsError(requestError.message)
+    }
+  }
+
   const editArticle = (article) => {
     setEditingArticleId(article.id)
     setArticleDraft({ category: article.category, title: article.title, image: article.image, alt: article.alt, excerpt: article.excerpt, body: article.body, status: article.status })
@@ -802,6 +825,22 @@ function App() {
     }
   }
 
+  const deleteArticle = async (article) => {
+    if (!window.confirm(`Permanently delete "${article.title}"? This cannot be undone.`)) return
+    setCmsError('')
+    setCmsNotice('')
+    try {
+      await requestJSON(`/api/admin/articles/${article.id}`, { method: 'DELETE' })
+      setAdminArticles((current) => current.filter((item) => item.id !== article.id))
+      const { articles: publishedArticles } = await requestJSON('/api/journal')
+      setArticles(publishedArticles)
+      setCmsNotice(`Article "${article.title}" deleted.`)
+      if (editingArticleId === article.id) resetArticleDraft()
+    } catch (requestError) {
+      setCmsError(requestError.message)
+    }
+  }
+
   const saveContactDetails = async (event) => {
     event.preventDefault()
     setCmsSaving(true)
@@ -830,8 +869,102 @@ function App() {
         body: JSON.stringify({ fulfillmentStatus }),
       })
       setAdminOrders((current) => current.map((order) => order.id === orderId ? { ...order, fulfillmentStatus } : order))
+      setCmsNotice(`Order status updated to ${fulfillmentStatus}.`)
     } catch (requestError) {
       setCmsError(requestError.message)
+    }
+  }
+
+  const refreshCms = async () => {
+    setCmsLoading(true)
+    setCmsError('')
+    setCmsNotice('')
+    try {
+      const [{ products }, { articles: cmsArticles }, { orders }, { logs }] = await Promise.all([
+        requestJSON('/api/admin/products'),
+        requestJSON('/api/admin/articles'),
+        requestJSON('/api/admin/orders'),
+        requestJSON('/api/admin/audit-logs?limit=100'),
+      ])
+      setAdminProducts(products)
+      setAdminArticles(cmsArticles)
+      setAdminOrders(orders)
+      setAdminAuditLogs(logs)
+      setCmsNotice('CMS data refreshed.')
+    } catch (requestError) {
+      setCmsError(requestError.message)
+    } finally {
+      setCmsLoading(false)
+    }
+  }
+
+  const saveInventory = async (product) => {
+    const draft = inventoryDraft[product.id] || product.stockBySize
+    setCmsSaving(true)
+    setCmsError('')
+    setCmsNotice('')
+    try {
+      const stockBySize = Object.fromEntries(product.sizes.map((size) => [size, Number(draft[size] ?? 0)]))
+      const { product: updatedProduct } = await requestJSON(`/api/admin/products/${product.id}/inventory`, {
+        method: 'PATCH',
+        body: JSON.stringify({ stockBySize, expectedStockBySize: product.stockBySize }),
+      })
+      setAdminProducts((current) => current.map((item) => item.id === product.id ? updatedProduct : item))
+      setInventoryDraft((current) => ({ ...current, [product.id]: updatedProduct.stockBySize }))
+      setCmsNotice(`Stock updated for ${product.name}.`)
+      const { products } = await requestJSON('/api/products')
+      setProductCatalog(products)
+    } catch (requestError) {
+      if (requestError.status === 409 && requestError.data?.currentStockBySize) {
+        setInventoryDraft((current) => ({ ...current, [product.id]: requestError.data.currentStockBySize }))
+        setAdminProducts((current) => current.map((item) => item.id === product.id
+          ? { ...item, stockBySize: requestError.data.currentStockBySize }
+          : item))
+      }
+      setCmsError(requestError.message)
+    } finally {
+      setCmsSaving(false)
+    }
+  }
+
+  const saveShipment = async (order) => {
+    const draft = shipmentDraft[order.id] || {
+      carrier: order.shippingCarrier || '',
+      trackingNumber: order.trackingNumber || '',
+      trackingUrl: order.trackingUrl || '',
+    }
+    setCmsSaving(true)
+    setCmsError('')
+    setCmsNotice('')
+    try {
+      const result = await requestJSON(`/api/admin/orders/${order.id}/shipment`, {
+        method: 'PATCH',
+        body: JSON.stringify(draft),
+      })
+      setAdminOrders((current) => current.map((item) => item.id === order.id
+        ? { ...item, shippingCarrier: result.shippingCarrier, trackingNumber: result.trackingNumber, trackingUrl: result.trackingUrl }
+        : item))
+      setShipmentDraft((current) => ({ ...current, [order.id]: draft }))
+      setCmsNotice(`Shipment details saved for ${order.orderNumber}.`)
+    } catch (requestError) {
+      setCmsError(requestError.message)
+    } finally {
+      setCmsSaving(false)
+    }
+  }
+
+  const expireReservations = async () => {
+    setCmsSaving(true)
+    setCmsError('')
+    setCmsNotice('')
+    try {
+      const { cancelledCount } = await requestJSON('/api/admin/orders/expire-reservations', { method: 'POST', body: '{}' })
+      await refreshCms()
+      setCmsNotice(`${cancelledCount} expired reservation${cancelledCount === 1 ? '' : 's'} cancelled.`)
+    } catch (requestError) {
+      setCmsError(requestError.message)
+    } finally {
+      setCmsSaving(false)
     }
   }
 
@@ -1283,9 +1416,10 @@ function App() {
                 <p className="nav-label text-[#8A8A86]">AUREVÉ · Administration</p>
                 <h1 className="font-display text-6xl md:text-7xl">Content studio</h1>
               </div>
-              <button type="button" className="border border-[#D8D8D4] bg-white px-5 py-3 text-[10px] uppercase tracking-[0.24em]" onClick={() => setCurrentView('home')}>
-                View storefront
-              </button>
+              <div className="flex gap-2">
+                <button type="button" className="border border-[#D8D8D4] bg-white px-5 py-3 text-[10px] uppercase tracking-[0.24em]" onClick={refreshCms}>Refresh</button>
+                <button type="button" className="border border-[#D8D8D4] bg-white px-5 py-3 text-[10px] uppercase tracking-[0.24em]" onClick={() => setCurrentView('home')}>View storefront</button>
+              </div>
             </div>
 
             <div role="tablist" aria-label="CMS sections" className="mb-8 flex overflow-x-auto border-b border-[#D8D8D4]">
@@ -1294,6 +1428,7 @@ function App() {
                 { id: 'articles', label: `Journal (${adminArticles.length})` },
                 { id: 'orders', label: `Orders (${adminOrders.length})` },
                 { id: 'contact', label: 'Contact' },
+                { id: 'audit', label: 'Activity' },
               ].map((tab) => (
                 <button key={tab.id} type="button" role="tab" aria-selected={adminTab === tab.id} className={`whitespace-nowrap border-b-2 px-5 py-4 text-[10px] uppercase tracking-[0.22em] ${adminTab === tab.id ? 'border-black text-black' : 'border-transparent text-[#8A8A86]'}`} onClick={() => { setAdminTab(tab.id); setCmsError(''); setCmsNotice(''); }}>
                   {tab.label}
@@ -1319,8 +1454,13 @@ function App() {
                           Add product
                         </button>
                       </div>
+                      <label className="mb-4 block">
+                        <span className="sr-only">Search CMS products</span>
+                        <input type="search" value={adminProductQuery} onChange={(event) => setAdminProductQuery(event.target.value)} placeholder="Search products" className="w-full border border-[#D8D8D4] bg-white px-3 py-3 text-sm outline-none focus:border-black" />
+                      </label>
                       <div className="divide-y divide-[#D8D8D4]">
-                        {adminProducts.map((product) => (
+                        {adminProducts.filter((product) => [product.name, product.category, product.audience]
+                          .join(' ').toLowerCase().includes(adminProductQuery.toLowerCase())).map((product) => (
                           <div key={product.id} className="flex flex-wrap items-center gap-4 py-4">
                             <img src={product.gallery[0]} alt={product.name} className="h-20 w-16 border border-[#D8D8D4] object-cover" />
                             <div className="min-w-0 flex-1">
@@ -1330,7 +1470,40 @@ function App() {
                             </div>
                             <div className="flex gap-2">
                               <button type="button" className="border border-[#D8D8D4] bg-white px-3 py-2 text-[10px] uppercase tracking-[0.15em]" onClick={() => { editProduct(product); productFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>Edit</button>
-                              <button type="button" className="border border-[#D8D8D4] bg-white px-3 py-2 text-[10px] uppercase tracking-[0.15em]" onClick={() => toggleProductActive(product)}>{product.isActive ? 'Hide' : 'Publish'}</button>
+                              <button type="button" className="border border-[#B3261E]/40 bg-white px-3 py-2 text-[10px] uppercase tracking-[0.15em] text-[#B3261E]" onClick={() => deleteProduct(product)}>Delete</button>
+                              <button type="button" className="border border-[#D8D8D4] bg-white px-3 py-2 text-[10px] uppercase tracking-[0.15em]" onClick={() => {
+                                if (product.isActive && !window.confirm(`Hide "${product.name}" from the storefront?`)) return
+                                toggleProductActive(product)
+                              }}>{product.isActive ? 'Hide' : 'Publish'}</button>
+                            </div>
+                            <div className="basis-full border-t border-[#E9E9E6] pt-3">
+                              <p className="mb-3 nav-label text-[#686864]">Inventory</p>
+                              <div className="flex flex-wrap items-end gap-3">
+                                {product.sizes.map((size) => {
+                                  const stock = inventoryDraft[product.id]?.[size] ?? product.stockBySize?.[size] ?? 0
+                                  return (
+                                    <label key={size} className="block">
+                                      <span className="mb-1 block text-[10px] uppercase tracking-[0.14em] text-[#686864]">{size}</span>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max="100000"
+                                        step="1"
+                                        value={stock}
+                                        onChange={(event) => setInventoryDraft((current) => ({
+                                          ...current,
+                                          [product.id]: {
+                                            ...(current[product.id] || product.stockBySize || {}),
+                                            [size]: event.target.value,
+                                          },
+                                        }))}
+                                        className="h-10 w-20 border border-[#D8D8D4] bg-white px-2 text-sm outline-none focus:border-black"
+                                      />
+                                    </label>
+                                  )
+                                })}
+                                <button type="button" disabled={cmsSaving} className="h-10 border border-black bg-black px-4 text-[10px] uppercase tracking-[0.16em] text-white disabled:opacity-50" onClick={() => saveInventory(product)}>Save stock</button>
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -1381,7 +1554,10 @@ function App() {
                           <div key={article.id} className="flex items-center gap-4 py-4">
                             <img src={article.image} alt={article.alt} className="h-20 w-16 object-cover" />
                             <div className="min-w-0 flex-1"><p className="text-sm font-medium">{article.title}</p><p className="mt-1 text-xs text-[#8A8A86]">{article.category} · {article.status}</p></div>
-                            <button type="button" className="border border-[#D8D8D4] bg-white px-3 py-2 text-[10px] uppercase tracking-[0.15em]" onClick={() => { editArticle(article); articleFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>Edit</button>
+                            <div className="flex gap-2">
+                              <button type="button" className="border border-[#D8D8D4] bg-white px-3 py-2 text-[10px] uppercase tracking-[0.15em]" onClick={() => { editArticle(article); articleFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>Edit</button>
+                              <button type="button" className="border border-[#B3261E]/40 bg-white px-3 py-2 text-[10px] uppercase tracking-[0.15em] text-[#B3261E]" onClick={() => deleteArticle(article)}>Delete</button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1412,12 +1588,27 @@ function App() {
 
                 {adminTab === 'orders' && (
                   <section aria-label="Order management">
-                    <div className="mb-4 border-b border-[#D8D8D4] pb-3"><p className="nav-label text-[#8A8A86]">Store operations</p><h2 className="font-display text-4xl">Orders</h2></div>
+                    <div className="mb-4 flex flex-wrap items-end justify-between gap-4 border-b border-[#D8D8D4] pb-3">
+                      <div><p className="nav-label text-[#8A8A86]">Store operations</p><h2 className="font-display text-4xl">Orders</h2></div>
+                      <div className="flex gap-2">
+                        <button type="button" disabled={cmsSaving} className="border border-[#D8D8D4] bg-white px-4 py-3 text-[10px] uppercase tracking-[0.16em] disabled:opacity-50" onClick={expireReservations}>Expire reservations</button>
+                        <button type="button" className="border border-[#D8D8D4] bg-white px-4 py-3 text-[10px] uppercase tracking-[0.16em]" onClick={refreshCms}>Refresh orders</button>
+                      </div>
+                    </div>
+                    <label className="mb-4 block">
+                      <span className="sr-only">Search CMS orders</span>
+                      <input type="search" value={adminOrderQuery} onChange={(event) => setAdminOrderQuery(event.target.value)} placeholder="Search order, customer, or email" className="w-full max-w-md border border-[#D8D8D4] bg-white px-3 py-3 text-sm outline-none focus:border-black" />
+                    </label>
                     {adminOrders.length === 0 ? <p className="py-10 text-sm text-[#8A8A86]">No orders yet.</p> : (
                       <div className="overflow-x-auto">
                         <table className="w-full min-w-[760px] border-collapse text-left text-sm">
                           <thead><tr className="border-b border-[#D8D8D4] text-[10px] uppercase tracking-[0.18em] text-[#8A8A86]"><th className="py-3 pr-4">Order</th><th className="py-3 pr-4">Customer</th><th className="py-3 pr-4">Delivery</th><th className="py-3 pr-4">Total</th><th className="py-3">Status</th></tr></thead>
-                          <tbody>{adminOrders.map((order) => (
+                          <tbody>{adminOrders.filter((order) => [
+                            order.orderNumber,
+                            order.customerName,
+                            order.customerEmail,
+                            order.shippingAddress?.city,
+                          ].filter(Boolean).join(' ').toLowerCase().includes(adminOrderQuery.toLowerCase())).map((order) => (
                             <Fragment key={order.id}>
                               <tr key={order.id} className="border-b border-[#D8D8D4] align-top">
                                 <td className="py-4 pr-4">
@@ -1430,12 +1621,32 @@ function App() {
                                 <td className="py-4 pr-4"><p>{order.customerName}</p><p className="mt-1 text-xs text-[#8A8A86]">{order.customerEmail}</p></td>
                                 <td className="py-4 pr-4"><p className="capitalize">{order.shippingMethod}</p><p className="mt-1 text-xs text-[#8A8A86]">{order.shippingAddress.city}, {order.shippingAddress.country}</p></td>
                                 <td className="py-4 pr-4">{formatPrice(order.total, order.currencyCode || 'IDR')}</td>
-                                <td className="py-4"><select aria-label={`Fulfillment status for ${order.orderNumber}`} value={order.fulfillmentStatus} onChange={(event) => updateOrderStatus(order.id, event.target.value)} className="border border-[#D8D8D4] bg-white px-2 py-2 text-xs"><option value="processing">Processing</option><option value="packed">Packed</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option></select></td>
+                                <td className="py-4">
+                                  <select
+                                    aria-label={`Fulfillment status for ${order.orderNumber}`}
+                                    value={order.fulfillmentStatus}
+                                    onChange={(event) => {
+                                      const nextStatus = event.target.value
+                                      if (nextStatus === 'cancelled' && !window.confirm(`Cancel order ${order.orderNumber}? Reserved stock will be restored.`)) return
+                                      updateOrderStatus(order.id, nextStatus)
+                                    }}
+                                    className="border border-[#D8D8D4] bg-white px-2 py-2 text-xs"
+                                  >
+                                    <option value={order.fulfillmentStatus}>{order.fulfillmentStatus}</option>
+                                    {({
+                                      processing: ['packed', 'cancelled'],
+                                      packed: ['shipped', 'cancelled'],
+                                      shipped: ['delivered'],
+                                      delivered: [],
+                                      cancelled: [],
+                                    })[order.fulfillmentStatus]?.map((status) => <option key={status} value={status}>{status}</option>)}
+                                  </select>
+                                </td>
                               </tr>
                               {expandedOrderId === order.id && (
                                 <tr key={`${order.id}-details`} className="border-b border-[#D8D8D4]">
                                   <td colSpan={5} className="p-0">
-                                    <div className="grid gap-6 bg-[#F7F7F5] p-5 md:grid-cols-3 md:p-6">
+                                    <div className="grid gap-6 bg-[#F7F7F5] p-5 md:grid-cols-4 md:p-6">
                                       <section aria-label="Customer and delivery details">
                                         <p className="nav-label mb-3 text-[#686864]">Customer & delivery</p>
                                         <p className="text-sm font-medium">{order.shippingAddress.name}</p>
@@ -1463,6 +1674,26 @@ function App() {
                                           <div className="flex justify-between gap-4"><span className="text-[#686864]">Subtotal</span><span>{formatPrice(order.subtotal, order.currencyCode || 'IDR')}</span></div>
                                           <div className="flex justify-between gap-4"><span className="text-[#686864]">Shipping</span><span>{order.shipping === 0 ? 'Free' : formatPrice(order.shipping, order.currencyCode || 'IDR')}</span></div>
                                           <div className="flex justify-between gap-4 border-t border-[#D8D8D4] pt-2 font-medium"><span>Total</span><span>{formatPrice(order.total, order.currencyCode || 'IDR')}</span></div>
+                                        </div>
+                                      </section>
+                                      <section aria-label="Shipment tracking">
+                                        <p className="nav-label mb-3 text-[#686864]">Shipment tracking</p>
+                                        <div className="space-y-3">
+                                          {(() => {
+                                            const draft = shipmentDraft[order.id] || {
+                                              carrier: order.shippingCarrier || '',
+                                              trackingNumber: order.trackingNumber || '',
+                                              trackingUrl: order.trackingUrl || '',
+                                            }
+                                            return (
+                                              <>
+                                                <CmsField label="Carrier" value={draft.carrier} onChange={(carrier) => setShipmentDraft((current) => ({ ...current, [order.id]: { ...draft, carrier } }))} />
+                                                <CmsField label="Tracking number" value={draft.trackingNumber} onChange={(trackingNumber) => setShipmentDraft((current) => ({ ...current, [order.id]: { ...draft, trackingNumber } }))} />
+                                                <CmsField label="HTTPS tracking URL" type="url" value={draft.trackingUrl} onChange={(trackingUrl) => setShipmentDraft((current) => ({ ...current, [order.id]: { ...draft, trackingUrl } }))} />
+                                                <button type="button" disabled={cmsSaving} className="w-full border border-black bg-black px-3 py-3 text-[10px] uppercase tracking-[0.16em] text-white disabled:opacity-50" onClick={() => saveShipment(order)}>Save tracking</button>
+                                              </>
+                                            )
+                                          })()}
                                         </div>
                                       </section>
                                     </div>
@@ -1495,6 +1726,36 @@ function App() {
                         {cmsSaving ? 'Saving' : 'Save contact details'}
                       </button>
                     </form>
+                  </section>
+                )}
+
+                {adminTab === 'audit' && (
+                  <section aria-label="Admin activity log">
+                    <div className="mb-4 flex items-end justify-between border-b border-[#D8D8D4] pb-3">
+                      <div><p className="nav-label text-[#8A8A86]">Security & operations</p><h2 className="font-display text-4xl">Activity</h2></div>
+                      <button type="button" className="border border-[#D8D8D4] bg-white px-4 py-3 text-[10px] uppercase tracking-[0.16em]" onClick={refreshCms}>Refresh</button>
+                    </div>
+                    {adminAuditLogs.length === 0 ? (
+                      <p className="py-10 text-sm text-[#686864]">No activity recorded yet.</p>
+                    ) : (
+                      <div className="divide-y divide-[#D8D8D4]">
+                        {adminAuditLogs.map((log) => (
+                          <article key={log.id} className="grid gap-3 py-4 md:grid-cols-[180px_180px_1fr]">
+                            <time className="text-xs text-[#686864]" dateTime={log.createdAt}>{new Date(log.createdAt).toLocaleString('id-ID')}</time>
+                            <div>
+                              <p className="text-sm font-medium">{log.action}</p>
+                              <p className="mt-1 text-xs text-[#686864]">{log.entityType}{log.entityId ? ` #${log.entityId}` : ''}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-[#686864]">{log.actorEmail}</p>
+                              {Object.keys(log.details || {}).length > 0 && (
+                                <pre className="mt-2 whitespace-pre-wrap break-all text-xs text-[#686864]">{JSON.stringify(log.details, null, 2)}</pre>
+                              )}
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    )}
                   </section>
                 )}
               </>

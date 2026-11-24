@@ -18,7 +18,6 @@ const production = process.env.NODE_ENV === 'production'
 const developmentAdminEmail = production ? '' : 'admin@aureve.local'
 const adminEmail = (process.env.ADMIN_EMAIL || developmentAdminEmail).trim().toLowerCase()
 const adminPassword = process.env.ADMIN_PASSWORD || (production ? '' : 'AureveDemo2026!')
-const seedDevAdmin = process.env.SEED_DEV_ADMIN === 'true' && !production
 const smtpHost = process.env.SMTP_HOST?.trim()
 const smtpPort = Number(process.env.SMTP_PORT || 587)
 const smtpUser = process.env.SMTP_USER?.trim()
@@ -195,6 +194,12 @@ database.exec(`
     setting_value TEXT NOT NULL,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS cms_deleted_entities (
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    deleted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (entity_type, entity_id)
+  );
   CREATE INDEX IF NOT EXISTS sessions_expiry_idx ON sessions(expires_at);
   CREATE INDEX IF NOT EXISTS orders_user_idx ON orders(user_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS order_items_order_idx ON order_items(order_id);
@@ -330,6 +335,8 @@ const insertSeedProduct = database.prepare(`
   VALUES (@id, @name, @price, 'IDR', @category, @color, @material, @audience, @sizes, @gallery)
 `)
 for (const product of seedProducts) {
+  if (database.prepare('SELECT 1 FROM cms_deleted_entities WHERE entity_type = ? AND entity_id = ?')
+    .get('product', String(product.id))) continue
   insertSeedProduct.run({ ...product, sizes: JSON.stringify(product.sizes), gallery: JSON.stringify(product.gallery) })
 }
 for (const product of database.prepare('SELECT id, sizes FROM products').all()) {
@@ -367,11 +374,15 @@ const insertSeedArticle = database.prepare(`
   VALUES (@category, @title, @image, @alt, @excerpt, @body, 'published')
 `)
 if (!database.prepare('SELECT 1 FROM articles LIMIT 1').get()) {
-  for (const article of seedArticles) insertSeedArticle.run(article)
+  for (let index = 0; index < seedArticles.length; index += 1) {
+    if (database.prepare('SELECT 1 FROM cms_deleted_entities WHERE entity_type = ? AND entity_id = ?')
+      .get('article_seed', String(index))) continue
+    insertSeedArticle.run(seedArticles[index])
+  }
 }
 
 if (production) database.prepare("UPDATE users SET role = 'customer' WHERE role = 'admin'").run()
-if ((production || seedDevAdmin) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail) && adminPassword.length >= 12) {
+if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail) && adminPassword.length >= 12) {
   const adminHash = bcrypt.hashSync(adminPassword, 12)
   database.prepare(`
     INSERT INTO users (name, email, password_hash, role) VALUES ('AUREVÉ Admin', ?, ?, 'admin')
@@ -1251,6 +1262,20 @@ app.patch('/api/admin/products/:id', requireAdmin, (request, response) => {
   response.json({ product: presentProduct(database.prepare('SELECT * FROM products WHERE id = ?').get(productId)) })
 })
 
+app.delete('/api/admin/products/:id', requireAdmin, (request, response) => {
+  const productId = Number(request.params.id)
+  const product = database.prepare('SELECT id, name FROM products WHERE id = ?').get(productId)
+  if (!product) return response.status(404).json({ error: 'Product not found.' })
+  const referenced = database.prepare('SELECT 1 FROM order_items WHERE product_id = ? LIMIT 1').get(productId)
+  if (referenced) return response.status(409).json({ error: 'Products with existing orders cannot be deleted. Hide it instead.' })
+  database.transaction(() => {
+    database.prepare('DELETE FROM products WHERE id = ?').run(productId)
+    database.prepare('INSERT OR IGNORE INTO cms_deleted_entities (entity_type, entity_id) VALUES (?, ?)').run('product', String(productId))
+    recordAdminAudit(request, 'deleted', 'product', productId, { name: product.name })
+  })()
+  response.json({ success: true })
+})
+
 app.patch('/api/admin/products/:id/inventory', requireAdmin, (request, response) => {
   const productId = Number(request.params.id)
   const product = database.prepare('SELECT id, sizes FROM products WHERE id = ?').get(productId)
@@ -1330,6 +1355,23 @@ app.patch('/api/admin/articles/:id', requireAdmin, (request, response) => {
   `).run({ ...result.value, id: articleId })
   recordAdminAudit(request, 'updated', 'article', articleId, { status: result.value.status })
   response.json({ article: database.prepare('SELECT id, category, title, image, alt, excerpt, body, status FROM articles WHERE id = ?').get(articleId) })
+})
+
+app.delete('/api/admin/articles/:id', requireAdmin, (request, response) => {
+  const articleId = Number(request.params.id)
+  const article = database.prepare('SELECT id, title FROM articles WHERE id = ?').get(articleId)
+  if (!article) return response.status(404).json({ error: 'Article not found.' })
+  database.transaction(() => {
+    database.prepare('DELETE FROM articles WHERE id = ?').run(articleId)
+    database.prepare('INSERT OR IGNORE INTO cms_deleted_entities (entity_type, entity_id) VALUES (?, ?)').run('article', String(articleId))
+    const seedIndex = seedArticles.findIndex((seed) => seed.title === article.title)
+    if (seedIndex >= 0) {
+      database.prepare('INSERT OR IGNORE INTO cms_deleted_entities (entity_type, entity_id) VALUES (?, ?)')
+        .run('article_seed', String(seedIndex))
+    }
+    recordAdminAudit(request, 'deleted', 'article', articleId, { title: article.title })
+  })()
+  response.json({ success: true })
 })
 
 app.get('/api/admin/orders', requireAdmin, (_request, response) => {
